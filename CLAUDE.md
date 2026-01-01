@@ -4,12 +4,12 @@
 
 | Situation | Commande OBLIGATOIRE | Économie |
 |-----------|---------------------|----------|
-| Chercher du code | `pnpm rag:context "query" --lazy` | **60-80%** |
-| Puis charger un résultat | `pnpm rag:expand <ref>` | Seulement ce qu'il faut |
+| Chercher du code | `pnpm rag:context "query" --lazy --no-cache` | **60-80%** |
+| Puis charger un résultat | `pnpm rag:expand <ref> -c 10` | Seulement ce qu'il faut |
 | Comprendre les types | `pnpm rag:context "query" --types-only` | **80-90%** |
 | Explorer signatures | `pnpm rag:context "query" --signatures-only` | **70-80%** |
 
-**⛔ INTERDIT:** `rag:context` sans `--lazy` ou `--types-only` sauf besoin explicite du code complet.
+**⛔ INTERDIT:** `rag:context` sans `--lazy --no-cache` ou `--types-only` sauf besoin explicite du code complet.
 
 ## 🔌 Hooks Installés (Automatiques)
 
