@@ -82,7 +82,7 @@ Search the indexed codebase using semantic search.
 \`/rag <query>\`
 
 ## Instructions
-Run: \`node plugins/claude-toolkit/dist/search.js context "$ARGUMENTS" -d . -k 8\`
+Run: \`node plugins/claude-code-toolkit/dist/search.js context "$ARGUMENTS" -d . -k 8\`
 
 ## Options
 - \`-k <number>\` - Number of results (default: 8)
@@ -98,7 +98,7 @@ Get structured context from git diff.
 \`/diff [options]\`
 
 ## Instructions
-Run: \`node plugins/claude-toolkit/dist/search.js diff -d . $ARGUMENTS\`
+Run: \`node plugins/claude-code-toolkit/dist/search.js diff -d . $ARGUMENTS\`
 
 ## Options
 - \`--staged\` - Only staged changes
@@ -114,7 +114,7 @@ Get auto-generated project summary.
 \`/memory\`
 
 ## Instructions
-Run: \`node plugins/claude-toolkit/dist/search.js memory -d .\`
+Run: \`node plugins/claude-code-toolkit/dist/search.js memory -d .\`
 
 ## Options
 - \`--generate\` - Force regeneration
@@ -129,7 +129,7 @@ Get session summary for context continuity. Auto-saved on session end.
 \`/session [options]\`
 
 ## Instructions
-Run: \`node plugins/claude-toolkit/dist/search.js session -d . $ARGUMENTS\`
+Run: \`node plugins/claude-code-toolkit/dist/search.js session -d . $ARGUMENTS\`
 
 ## Options
 - \`--compact\` - Short summary
@@ -149,8 +149,8 @@ Search and manage error patterns database.
 \`/errors [action] [options]\`
 
 ## Instructions
-Search: \`node plugins/claude-toolkit/dist/search.js errors find -m "error message" -d .\`
-Add: \`node plugins/claude-toolkit/dist/search.js errors add -t "Type" -m "msg" -s "solution" -d .\`
+Search: \`node plugins/claude-code-toolkit/dist/search.js errors find -m "error message" -d .\`
+Add: \`node plugins/claude-code-toolkit/dist/search.js errors add -t "Type" -m "msg" -s "solution" -d .\`
 
 ## Options
 - \`find -m "msg"\` - Find matching pattern
@@ -167,8 +167,8 @@ Search and manage code snippets cache.
 \`/snippets [action] [options]\`
 
 ## Instructions
-Search: \`node plugins/claude-toolkit/dist/search.js snippets --search "query" -d .\`
-Add: \`node plugins/claude-toolkit/dist/search.js snippets add -n "name" --code "code" -d .\`
+Search: \`node plugins/claude-code-toolkit/dist/search.js snippets --search "query" -d .\`
+Add: \`node plugins/claude-code-toolkit/dist/search.js snippets add -n "name" --code "code" -d .\`
 
 ## Options
 - \`--search "query"\` - Search snippets
@@ -188,7 +188,7 @@ import { existsSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT = "plugins/claude-toolkit/dist/search.js";
+const TOOLKIT = "plugins/claude-code-toolkit/dist/search.js";
 
 function safeExec(cmd) {
   try {
@@ -248,7 +248,7 @@ import { execSync } from "child_process";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT = join(PROJECT_DIR, "plugins/claude-toolkit/dist/search.js");
+const TOOLKIT = join(PROJECT_DIR, "plugins/claude-code-toolkit/dist/search.js");
 
 let input;
 try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }

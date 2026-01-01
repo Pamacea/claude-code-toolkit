@@ -8,7 +8,7 @@ import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT_PATH = join(PROJECT_DIR, "plugins/claude-toolkit/dist/search.js");
+const TOOLKIT_PATH = join(PROJECT_DIR, "plugins/claude-code-toolkit/dist/search.js");
 const SESSION_FILE = join(PROJECT_DIR, ".rag-session.json");
 
 function safeExec(cmd) {

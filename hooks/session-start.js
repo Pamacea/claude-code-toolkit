@@ -4,8 +4,8 @@ import { existsSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.cwd();
-const TOOLKIT_PATH = "plugins/claude-toolkit/dist/search.js";
-const CLI_PATH = "plugins/claude-toolkit/dist/cli.js";
+const TOOLKIT_PATH = "plugins/claude-code-toolkit/dist/search.js";
+const CLI_PATH = "plugins/claude-code-toolkit/dist/cli.js";
 
 function safeExec(cmd, options = {}) {
   try {
@@ -26,7 +26,7 @@ try {
   const cliScript = join(PROJECT_DIR, CLI_PATH);
 
   if (!existsSync(toolkitScript)) {
-    console.log("RAG indexer not built. Run: cd plugins/claude-toolkit && pnpm build");
+    console.log("RAG indexer not built. Run: cd plugins/claude-code-toolkit && pnpm build");
     process.exit(0);
   }
 

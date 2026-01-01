@@ -38,7 +38,7 @@ Token-optimized toolkit for Claude Code: RAG indexer, AST-based chunking, semant
 
 ```bash
 # Build the toolkit
-cd plugins/claude-toolkit && pnpm build && cd ../..
+cd plugins/claude-code-toolkit && pnpm build && cd ../..
 
 # Index the codebase
 pnpm rag:index
@@ -740,7 +740,7 @@ When reading large files (>150 lines), the `auto-truncate` hook:
 ## Architecture
 
 ```
-plugins/claude-toolkit/
+plugins/claude-code-toolkit/
 ├── src/
 │   ├── cli.ts              # Index CLI
 │   ├── search.ts           # Search CLI (all commands)
@@ -776,14 +776,14 @@ import {
   search,
   embed,
   initEmbedder
-} from './plugins/claude-toolkit/dist/index.js';
+} from './plugins/claude-code-toolkit/dist/index.js';
 
 import {
   loadCache,
   lookupExact,
   lookupSimilar,
   addToCache
-} from './plugins/claude-toolkit/dist/cache.js';
+} from './plugins/claude-code-toolkit/dist/cache.js';
 
 await initEmbedder();
 const store = loadStore('.');

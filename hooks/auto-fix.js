@@ -9,7 +9,7 @@ import { execSync } from "child_process";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT_PATH = join(PROJECT_DIR, "plugins/claude-toolkit/dist/search.js");
+const TOOLKIT_PATH = join(PROJECT_DIR, "plugins/claude-code-toolkit/dist/search.js");
 const ERRORS_DB = join(PROJECT_DIR, ".rag-errors.json");
 
 let inputData;
