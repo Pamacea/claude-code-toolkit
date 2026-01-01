@@ -1,6 +1,6 @@
-# Claude Toolkit
+# Claude Toolkit v4.2
 
-Token-optimized toolkit for Claude Code: RAG indexer, AST-based chunking, semantic cache, and context optimization.
+Token-optimized toolkit for Claude Code: RAG indexer, AST-based chunking, semantic cache, context optimization, and intelligent hooks.
 
 ## Features
 
@@ -19,6 +19,11 @@ Token-optimized toolkit for Claude Code: RAG indexer, AST-based chunking, semant
 | **Auto-Commit** | Generate commit messages from git diff | 100% writing time |
 | **Signatures & Deps** | Tracks function signatures and dependencies | Enables minimal context mode |
 | **Smart Search** | Cosine similarity on 384-dim embeddings | Finds relevant code fast |
+| **Session Continuity** | Auto-save/load session state across Claude sessions | Context preserved |
+| **Error Pattern DB** | Store and lookup known error solutions | Faster debugging |
+| **Auto-Fix Suggestions** | Suggest fixes when errors match known patterns | Automatic solutions |
+| **Smart File Watcher** | Show related files (importers/imports) when editing | Better awareness |
+| **Code Snippets Cache** | Store and retrieve reusable code patterns | Faster implementation |
 
 ## Quick Start
 
@@ -612,25 +617,118 @@ Finds tests using common patterns:
 | `.rag-hashes.json` | File hash index (add to .gitignore) |
 | `.claude-memory.json` | Project memory (add to .gitignore) |
 
+## Hooks (v4.2)
+
+Claude Toolkit installs intelligent hooks that enhance Claude Code automatically.
+
+### Installed Hooks
+
+| Hook | Trigger | Action |
+|------|---------|--------|
+| **session-start** | SessionStart | Loads session context, project memory, reindexes if needed |
+| **session-end** | Stop | Saves session state (modified files, last commit, duration) |
+| **smart-files** | PreToolUse (Edit) | Shows related files (importers/imports) before editing |
+| **auto-fix** | PostToolUse (Bash) | Searches error DB and suggests fixes when commands fail |
+| **suggest-rag** | PreToolUse (Read) | Reminds to use RAG before reading files |
+
+### Session Continuity
+
+Session state is automatically preserved between Claude sessions:
+
+```bash
+# View current session
+pnpm rag:session
+
+# Compact summary
+pnpm rag:session --compact
+
+# Set work context
+pnpm rag:session --context "implementing feature X"
+
+# Start fresh session
+pnpm rag:session --new
+```
+
+### Error Pattern Database
+
+Store and lookup known error solutions:
+
+```bash
+# Search for error solution
+pnpm rag:errors find -m "Cannot find module"
+
+# Add solved error to DB
+pnpm rag:errors add -t "ModuleNotFound" -m "Cannot find module X" -s "Run pnpm install" --tags "npm,deps"
+
+# View recent errors
+pnpm rag:errors --recent
+
+# View most common errors
+pnpm rag:errors --common
+```
+
+When a Bash command fails, the `auto-fix` hook automatically searches the error DB and suggests solutions with code changes if available.
+
+### Code Snippets Cache
+
+Store reusable code patterns:
+
+```bash
+# Search snippets
+pnpm rag:snippets --search "debounce"
+
+# Add new snippet
+pnpm rag:snippets add -n "useDebounce" --desc "Debounce hook" --code "const [value] = useDebounce(input, 300)"
+
+# Get by name
+pnpm rag:snippets --get "useDebounce"
+
+# Filter by category
+pnpm rag:snippets -c hook
+
+# View popular snippets
+pnpm rag:snippets --popular
+```
+
+### Smart File Watcher
+
+When editing a file, the `smart-files` hook shows related files:
+
+```
+📁 Related: ← useAnima.ts (imports this), ← AnimaCanvas.tsx (imports this), → types.ts (imported)
+```
+
+This helps you understand the impact of your changes and navigate dependencies.
+
 ## Architecture
 
 ```
-plugins/claude-toolkit/src/
-├── cli.ts              # Index CLI
-├── search.ts           # Search CLI (all commands)
-├── scanner.ts          # File scanner
-├── chunker.ts          # Chunk coordinator
-├── ast-chunker.ts      # AST parsing (ts-morph)
-├── embedder.ts         # Embeddings (all-MiniLM-L6-v2)
-├── store.ts            # Vector store
-├── cache.ts            # Semantic cache
-├── diff-context.ts     # Git diff parsing
-├── memory.ts           # Project memory
-├── prompt-templates.ts # Prompt templates system
-├── dependency-graph.ts # Import/export graph
-├── file-watcher.ts     # Incremental reindexing
-├── smart-context.ts    # Type-only, test context, smart selection
-└── auto-commit.ts      # Commit message generation
+plugins/claude-toolkit/
+├── src/
+│   ├── cli.ts              # Index CLI
+│   ├── search.ts           # Search CLI (all commands)
+│   ├── scanner.ts          # File scanner
+│   ├── chunker.ts          # Chunk coordinator
+│   ├── ast-chunker.ts      # AST parsing (ts-morph)
+│   ├── embedder.ts         # Embeddings (all-MiniLM-L6-v2)
+│   ├── store.ts            # Vector store
+│   ├── cache.ts            # Semantic cache
+│   ├── diff-context.ts     # Git diff parsing
+│   ├── memory.ts           # Project memory
+│   ├── prompt-templates.ts # Prompt templates system
+│   ├── dependency-graph.ts # Import/export graph
+│   ├── file-watcher.ts     # Incremental reindexing
+│   ├── smart-context.ts    # Type-only, test context, smart selection
+│   ├── auto-commit.ts      # Commit message generation
+│   ├── session-summary.ts  # Session state management
+│   ├── error-patterns.ts   # Error pattern database
+│   └── snippets-cache.ts   # Code snippets cache
+└── hooks/
+    ├── session-start.js    # SessionStart hook
+    ├── session-end.js      # Stop hook
+    ├── smart-files.js      # PreToolUse (Edit) hook
+    ├── auto-fix.js         # PostToolUse (Bash) hook
+    └── suggest-rag.js      # PreToolUse (Read) hook
 ```
 
 ## API (Programmatic)

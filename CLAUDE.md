@@ -1,4 +1,14 @@
-# Claude Toolkit - Instructions OBLIGATOIRES
+# Claude Toolkit v4.2 - Instructions OBLIGATOIRES
+
+## 🔌 Hooks Installés (Automatiques)
+
+| Hook | Déclencheur | Action |
+|------|-------------|--------|
+| **session-start** | SessionStart | Charge session + memory + reindex si besoin |
+| **session-end** | Stop | Sauvegarde état session |
+| **smart-files** | PreToolUse (Edit) | Affiche fichiers liés (importers/imports) |
+| **auto-fix** | PostToolUse (Bash) | Cherche erreur dans DB + suggère fix |
+| **suggest-rag** | PreToolUse (Read) | Rappelle d'utiliser RAG avant Read |
 
 ## ⛔ RÈGLES ABSOLUES - VIOLATIONS INTERDITES
 
@@ -79,6 +89,44 @@
 | `pnpm rag:template` | Templates de prompts | 20-30% écriture |
 | `pnpm rag:cache` | Stats du cache | Debug |
 | `pnpm rag:stats` | Stats de l'index | Debug |
+| `pnpm rag:session` | Résumé session actuelle | Continuité |
+| `pnpm rag:session --compact` | Résumé court | Quick check |
+| `pnpm rag:errors find -m "msg"` | Chercher erreur connue | Debug rapide |
+| `pnpm rag:errors add ...` | Ajouter erreur résolue | **Obligatoire** |
+| `pnpm rag:snippets --search "q"` | Chercher snippet | Réutilisation |
+| `pnpm rag:snippets add ...` | Ajouter snippet | **Obligatoire** |
+
+---
+
+## 🧠 Features Automatiques (v4.2)
+
+### Session Continuity
+- **Auto-load** au démarrage : session précédente + memory + reindex
+- **Auto-save** à la fin : fichiers modifiés, dernier commit, durée
+
+### Smart Files
+Quand tu Edit un fichier `.ts/.tsx`, le hook affiche :
+```
+📁 Related: ← Component.tsx (imports this), → types.ts (imported)
+```
+
+### Auto-Fix Suggestions
+Quand une commande Bash échoue :
+1. Le hook cherche dans la DB d'erreurs
+2. Si match trouvé → affiche solution + code à changer
+3. Tu peux appliquer le fix directement
+
+### Error Pattern DB
+**OBLIGATOIRE** : Quand tu résous une erreur difficile, ajoute-la :
+```bash
+pnpm rag:errors add -t "TypeError" -m "Cannot read property X" -s "Vérifier null/undefined" --tags "typescript"
+```
+
+### Code Snippets
+**OBLIGATOIRE** : Quand tu crées un pattern réutilisable, sauvegarde-le :
+```bash
+pnpm rag:snippets add -n "useDebounce" --desc "Hook debounce" --code "const [value] = useDebounce(input, 300)"
+```
 
 ---
 
@@ -161,6 +209,19 @@ src/
 | `.rag-deps.json` | Graphe dépendances | ✅ |
 | `.rag-hashes.json` | Hashes fichiers | ✅ |
 | `.claude-memory.json` | Mémoire projet | ✅ |
+| `.rag-session.json` | État session | ✅ |
+| `.rag-errors.json` | DB erreurs | ✅ |
+| `.rag-snippets.json` | Cache snippets | ✅ |
+
+## 🏗️ Hooks (dans ~/.claude/hooks/)
+
+| Fichier | Déclencheur | Fonction |
+|---------|-------------|----------|
+| `session-start.js` | SessionStart | Charge contexte au démarrage |
+| `session-end.js` | Stop | Sauvegarde session à la fin |
+| `smart-files.js` | PreToolUse (Edit) | Affiche fichiers liés |
+| `auto-fix.js` | PostToolUse (Bash) | Suggère fix sur erreur |
+| `suggest-rag.js` | PreToolUse (Read) | Rappelle RAG |
 
 ---
 
