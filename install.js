@@ -412,6 +412,44 @@ try {
 `;
 }
 
+function getAutoTruncateHook() {
+  return `#!/usr/bin/env node
+import { readFileSync } from "fs";
+
+const MAX_LINES = 150, HEAD_LINES = 50, TAIL_LINES = 20;
+
+let input;
+try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
+
+if (input.tool_name !== "Read") process.exit(0);
+const result = input.tool_result;
+if (!result || typeof result !== "string") process.exit(0);
+
+const lines = result.split("\\n");
+if (lines.length <= MAX_LINES) process.exit(0);
+
+const filePath = input.tool_input?.file_path || "file";
+const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+if (![".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java"].includes(ext)) process.exit(0);
+
+const middleLines = lines.slice(HEAD_LINES, -TAIL_LINES);
+const sigs = [];
+for (const line of middleLines) {
+  const c = line.replace(/^\\s*\\d+→\\s*/, "");
+  if (/^(export\\s+)?(async\\s+)?function\\s+\\w+/.test(c) || /^(export\\s+)?class\\s+\\w+/.test(c) || /^(export\\s+)?(interface|type)\\s+\\w+/.test(c)) {
+    const s = c.split("{")[0].split("=>")[0].trim();
+    if (s.length > 10 && s.length < 150) sigs.push(s);
+  }
+}
+
+let msg = "⚠️ **File truncated** (" + lines.length + " lines → " + (HEAD_LINES + TAIL_LINES) + " shown)\\n";
+if (sigs.length) { msg += "Signatures: " + sigs.slice(0, 8).map(s => s.slice(0, 60)).join(", "); }
+msg += "\\n💡 Use Read with offset/limit or \\\`rag:context --lazy\\\`";
+
+console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", decision: "continue", reason: msg } }));
+`;
+}
+
 // ============================================================
 // SETTINGS
 // ============================================================
@@ -453,6 +491,12 @@ function updateSettings() {
     console.log("✅ Added PostToolUse hook (auto-fix)");
   }
 
+  const autoTruncatePath = escapePath(join(HOOKS_DIR, "auto-truncate.js"));
+  if (!settings.hooks.PostToolUse.some(h => h.hooks?.some(hk => hk.command?.includes("auto-truncate")))) {
+    settings.hooks.PostToolUse.push({ matcher: "Read", hooks: [{ type: "command", command: `node "${autoTruncatePath}"` }] });
+    console.log("✅ Added PostToolUse hook (auto-truncate)");
+  }
+
   const sessionEndPath = escapePath(join(HOOKS_DIR, "session-end.js"));
   if (!settings.hooks.Stop.some(h => h.hooks?.some(hk => hk.command?.includes("session-end")))) {
     settings.hooks.Stop.push({ matcher: "", hooks: [{ type: "command", command: `node "${sessionEndPath}"`, timeout: 15000 }] });
@@ -468,7 +512,7 @@ function updateSettings() {
 // ============================================================
 
 function install() {
-  console.log("\n🚀 Installing Claude Toolkit v4.2\n");
+  console.log("\n🚀 Installing Claude Toolkit v4.3\n");
   console.log(`Platform: ${platform()}`);
   console.log(`Project: ${PROJECT_ROOT}\n`);
 
@@ -489,21 +533,23 @@ function install() {
   writeHook("session-end.js", getSessionEndHook());
   writeHook("smart-files.js", getSmartFilesHook());
   writeHook("auto-fix.js", getAutoFixHook());
+  writeHook("auto-truncate.js", getAutoTruncateHook());
 
   updateSettings();
   updateGitignore(PROJECT_ROOT);
 
   console.log("\n✨ Installation complete!\n");
   console.log("Commands: /rag, /diff, /memory, /session, /errors, /snippets");
-  console.log("\nv4.2 Features:");
+  console.log("\nv4.3 Features:");
+  console.log("  - Lazy loading: --lazy + rag:expand (max token savings)");
+  console.log("  - Auto-truncate: large files auto-summarized");
   console.log("  - Session continuity (auto-load + auto-save)");
   console.log("  - Error pattern DB + auto-fix suggestions");
   console.log("  - Smart file watcher (related files on Edit)");
-  console.log("  - Code snippets cache");
   console.log("\nHooks installed:");
   console.log("  - SessionStart: Load session context");
   console.log("  - Stop: Save session state");
-  console.log("  - PostToolUse: Auto-fix suggestions");
+  console.log("  - PostToolUse: Auto-fix + Auto-truncate");
   console.log("  - PreToolUse: RAG suggestion + Smart files");
   console.log("\nRun: pnpm rag:index && pnpm rag:install\n");
 }

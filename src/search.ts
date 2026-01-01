@@ -190,6 +190,7 @@ program
   .option("--types-only", "Only show types/interfaces (80-90% token savings)")
   .option("--smart", "Smart context selection based on task type")
   .option("--signatures-only", "Only show signatures (minimal context)")
+  .option("--lazy", "Lazy loading: only refs, use 'expand' to load content (max token savings)")
   .option("--no-cache", "Disable semantic cache")
   .option("--cache-ttl <minutes>", "Cache TTL in minutes", "15")
   .action(async (question, options) => {
@@ -218,6 +219,11 @@ program
       if (exactMatch) {
         recordHit(cache, exactMatch, false);
         saveCache(rootDir, cache);
+        // Handle lazy mode for cached results
+        if (options.lazy) {
+          console.log(formatLazyCachedResults(question, exactMatch.results));
+          return;
+        }
         console.log(formatCachedResults(exactMatch, question));
         return;
       }
@@ -230,6 +236,11 @@ program
       if (similarMatch) {
         recordHit(cache, similarMatch, true);
         saveCache(rootDir, cache);
+        // Handle lazy mode for cached results
+        if (options.lazy) {
+          console.log(formatLazyCachedResults(question, similarMatch.results));
+          return;
+        }
         console.log(formatCachedResults(similarMatch, question));
         return;
       }
@@ -264,6 +275,11 @@ program
     const results = search(store, queryEmbedding, parseInt(options.topK), 0.35);
 
     // Handle special modes
+    if (options.lazy) {
+      console.log(formatLazyResults(question, results));
+      return;
+    }
+
     if (options.typesOnly) {
       const typeResults = extractTypesOnly(results.map((r) => r.chunk));
       console.log(formatTypesOnly(typeResults));
@@ -331,6 +347,122 @@ function formatResultsWithOptions(
   output += `</rag-context>`;
   return output;
 }
+
+/**
+ * Format lazy results (refs only, no content)
+ */
+function formatLazyResults(
+  question: string,
+  results: Array<{ chunk: any; score: number }>
+): string {
+  let output = `<lazy-context query="${question}" count="${results.length}">\n`;
+  output += `💡 Use \`pnpm rag:expand <ref>\` to load full content\n\n`;
+
+  for (let i = 0; i < results.length; i++) {
+    const { chunk, score } = results[i];
+    const ref = `${chunk.filePath}:${chunk.startLine + 1}`;
+    const type = chunk.name ? `${chunk.type}:${chunk.name}` : chunk.type;
+    const sig = chunk.signature ? ` - ${chunk.signature.slice(0, 80)}${chunk.signature.length > 80 ? "..." : ""}` : "";
+
+    output += `[${i + 1}] 📄 ${ref} (${(score * 100).toFixed(0)}%)\n`;
+    output += `    ${type}${sig}\n`;
+  }
+
+  output += `\n</lazy-context>`;
+  output += `\n<!-- Tokens saved: ~${results.reduce((acc, r) => acc + r.chunk.content.length, 0)} chars -->`;
+  return output;
+}
+
+/**
+ * Format lazy results from cached data
+ */
+function formatLazyCachedResults(
+  question: string,
+  results: CachedResult[]
+): string {
+  let output = `<lazy-context query="${question}" count="${results.length}" cached="true">\n`;
+  output += `💡 Use \`pnpm rag:expand <ref>\` to load full content\n\n`;
+
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const ref = `${r.filePath}:${r.line}`;
+    const sig = r.signature ? ` - ${r.signature.slice(0, 80)}${r.signature.length > 80 ? "..." : ""}` : "";
+
+    output += `[${i + 1}] 📄 ${ref} (${(r.score * 100).toFixed(0)}%)\n`;
+    output += `    ${r.type}${sig}\n`;
+  }
+
+  output += `\n</lazy-context>`;
+  output += `\n<!-- Tokens saved: ~${results.reduce((acc, r) => acc + (r.content?.length || 0), 0)} chars -->`;
+  return output;
+}
+
+program
+  .command("expand <ref>")
+  .description("Expand a lazy ref to full content (e.g., src/file.ts:42)")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("-c, --context <lines>", "Lines of context around match", "10")
+  .action(async (ref, options) => {
+    const rootDir = path.resolve(options.dir);
+    const contextLines = parseInt(options.context);
+
+    // Parse ref: path:line or just path
+    const match = ref.match(/^(.+):(\d+)$/);
+    let filePath: string;
+    let targetLine: number | null = null;
+
+    if (match) {
+      filePath = match[1];
+      targetLine = parseInt(match[2]);
+    } else {
+      filePath = ref;
+    }
+
+    // Resolve path
+    const fullPath = path.resolve(rootDir, filePath);
+
+    try {
+      const fs = await import("fs");
+      const content = fs.readFileSync(fullPath, "utf-8");
+      const lines = content.split("\n");
+
+      let output = `<expanded-context ref="${ref}">\n`;
+
+      if (targetLine !== null) {
+        // Show context around target line
+        const start = Math.max(0, targetLine - 1 - contextLines);
+        const end = Math.min(lines.length, targetLine - 1 + contextLines + 1);
+
+        output += `📄 ${filePath} (lines ${start + 1}-${end})\n\n`;
+
+        for (let i = start; i < end; i++) {
+          const prefix = i === targetLine - 1 ? "→ " : "  ";
+          output += `${prefix}${i + 1}│ ${lines[i]}\n`;
+        }
+      } else {
+        // Show full file (truncated if too long)
+        const maxLines = 100;
+        if (lines.length > maxLines) {
+          output += `📄 ${filePath} (first ${maxLines} of ${lines.length} lines)\n\n`;
+          for (let i = 0; i < maxLines; i++) {
+            output += `${i + 1}│ ${lines[i]}\n`;
+          }
+          output += `\n... ${lines.length - maxLines} more lines ...\n`;
+        } else {
+          output += `📄 ${filePath} (${lines.length} lines)\n\n`;
+          for (let i = 0; i < lines.length; i++) {
+            output += `${i + 1}│ ${lines[i]}\n`;
+          }
+        }
+      }
+
+      output += `</expanded-context>`;
+      console.log(output);
+    } catch (err) {
+      console.error(`Error reading ${filePath}: ${err}`);
+      process.exit(1);
+    }
+  });
 
 program
   .command("cache")

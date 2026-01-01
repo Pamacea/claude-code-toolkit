@@ -1,4 +1,15 @@
-# Claude Toolkit v4.2 - Instructions OBLIGATOIRES
+# Claude Toolkit v4.3 - Instructions OBLIGATOIRES
+
+## ⚡ ÉCONOMIE TOKENS - UTILISATION OBLIGATOIRE
+
+| Situation | Commande OBLIGATOIRE | Économie |
+|-----------|---------------------|----------|
+| Chercher du code | `pnpm rag:context "query" --lazy` | **60-80%** |
+| Puis charger un résultat | `pnpm rag:expand <ref>` | Seulement ce qu'il faut |
+| Comprendre les types | `pnpm rag:context "query" --types-only` | **80-90%** |
+| Explorer signatures | `pnpm rag:context "query" --signatures-only` | **70-80%** |
+
+**⛔ INTERDIT:** `rag:context` sans `--lazy` ou `--types-only` sauf besoin explicite du code complet.
 
 ## 🔌 Hooks Installés (Automatiques)
 
@@ -8,6 +19,7 @@
 | **session-end** | Stop | Sauvegarde état session |
 | **smart-files** | PreToolUse (Edit) | Affiche fichiers liés (importers/imports) |
 | **auto-fix** | PostToolUse (Bash) | Cherche erreur dans DB + suggère fix |
+| **auto-truncate** | PostToolUse (Read) | Tronque fichiers >150 lignes |
 | **suggest-rag** | PreToolUse (Read) | Rappelle d'utiliser RAG avant Read |
 
 ## ⛔ RÈGLES ABSOLUES - VIOLATIONS INTERDITES

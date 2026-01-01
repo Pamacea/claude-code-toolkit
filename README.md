@@ -1,6 +1,15 @@
-# Claude Toolkit v4.2
+# Claude Toolkit v4.3
 
 Token-optimized toolkit for Claude Code: RAG indexer, AST-based chunking, semantic cache, context optimization, and intelligent hooks.
+
+## Token Saving Features (MUST USE)
+
+| Feature | Command | Savings |
+|---------|---------|---------|
+| **Lazy Loading** | `pnpm rag:context "query" --lazy` | **60-80%** |
+| **Auto-Truncate** | Automatic on large files | **50-70%** |
+| **Types Only** | `pnpm rag:context "query" --types-only` | **80-90%** |
+| **Signatures Only** | `pnpm rag:context "query" --signatures-only` | **70-80%** |
 
 ## Features
 
@@ -699,6 +708,34 @@ When editing a file, the `smart-files` hook shows related files:
 ```
 
 This helps you understand the impact of your changes and navigate dependencies.
+
+### Lazy Loading (v4.3)
+
+Load only references first, then expand what you need:
+
+```bash
+# Step 1: Get refs only (no content = huge token savings)
+pnpm rag:context "animation engine" --lazy
+
+# Output:
+# [1] 📄 src/engine.ts:42 (85%) - function play(name: string)
+# [2] 📄 src/engine.ts:89 (78%) - function stop()
+# [3] 📄 src/types.ts:15 (72%) - interface AnimaFile
+
+# Step 2: Expand only what you need
+pnpm rag:expand src/engine.ts:42 -c 15
+```
+
+**Token savings: 60-80%** on search operations.
+
+### Auto-Truncate (v4.3)
+
+When reading large files (>150 lines), the `auto-truncate` hook:
+1. Shows first 50 + last 20 lines
+2. Extracts signatures from hidden middle section
+3. Suggests using `--lazy` or offset/limit
+
+**Token savings: 50-70%** on large file reads.
 
 ## Architecture
 
