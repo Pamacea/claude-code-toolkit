@@ -315,6 +315,103 @@ try {
 `;
 }
 
+function getSmartFilesHook() {
+  return `#!/usr/bin/env node
+import { readFileSync, existsSync } from "fs";
+import { join, basename } from "path";
+
+const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+const DEPS_FILE = join(PROJECT_DIR, ".rag-deps.json");
+
+let input;
+try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
+
+if (!["Edit", "Write"].includes(input.tool_name)) process.exit(0);
+const filePath = input.tool_input?.file_path || "";
+if (!filePath) process.exit(0);
+
+const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+if (![".ts", ".tsx", ".js", ".jsx"].includes(ext)) process.exit(0);
+if (!existsSync(DEPS_FILE)) process.exit(0);
+
+try {
+  const deps = JSON.parse(readFileSync(DEPS_FILE, "utf-8"));
+  const nodes = deps.nodes || {};
+  const fileName = basename(filePath);
+
+  let node = null;
+  for (const [key, value] of Object.entries(nodes)) {
+    if (key.includes(fileName)) { node = value; break; }
+  }
+  if (!node) process.exit(0);
+
+  const related = [];
+  if (node.importedBy?.length) related.push(...node.importedBy.slice(0, 3).map(f => "← " + basename(f)));
+  if (node.imports?.length) {
+    const imp = node.imports.filter(i => i.resolvedPath && !i.resolvedPath.includes("node_modules")).slice(0, 3);
+    related.push(...imp.map(i => "→ " + basename(i.resolvedPath)));
+  }
+  if (!related.length) process.exit(0);
+
+  console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", decision: "approve", reason: "📁 Related: " + related.join(", ") } }));
+} catch {}
+`;
+}
+
+function getAutoFixHook() {
+  return `#!/usr/bin/env node
+import { readFileSync, existsSync, writeFileSync } from "fs";
+import { join } from "path";
+
+const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+const ERRORS_DB = join(PROJECT_DIR, ".rag-errors.json");
+
+let input;
+try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
+
+if (input.tool_name !== "Bash") process.exit(0);
+const output = input.tool_result?.stdout || input.tool_result?.stderr || "";
+const exitCode = input.tool_result?.exit_code;
+
+const errPat = [/error:/i, /Error:/, /failed/i, /Cannot find/i, /not found/i, /TypeError/, /SyntaxError/, /Module not found/];
+const isError = exitCode !== 0 || errPat.some(p => p.test(output));
+if (!isError || !existsSync(ERRORS_DB)) process.exit(0);
+
+const lines = output.split("\\n").filter(l => l.trim());
+let msg = (lines.find(l => errPat.some(p => p.test(l))) || lines[0] || "").slice(0, 300);
+const norm = msg.toLowerCase().replace(/\\d+/g, "N").replace(/['"\`]/g, "").replace(/\\s+/g, " ").slice(0, 200);
+
+try {
+  const db = JSON.parse(readFileSync(ERRORS_DB, "utf-8"));
+  let best = null, bestScore = 0;
+  for (const p of db.patterns || []) {
+    const wordsA = new Set(norm.split(/\\s+/)), wordsB = new Set(p.normalizedMessage.split(/\\s+/));
+    let inter = 0; for (const w of wordsA) if (wordsB.has(w)) inter++;
+    const score = inter / (wordsA.size + wordsB.size - inter);
+    if (score > bestScore && score > 0.4) { bestScore = score; best = p; }
+  }
+  if (!best) process.exit(0);
+
+  let res = "🔍 **" + best.errorType + "** (" + Math.round(bestScore * 100) + "% match)\\n";
+  res += "💡 " + best.solution.description + "\\n";
+  if (best.solution.steps?.length) res += "\\nSteps: " + best.solution.steps.join(" → ");
+  if (best.solution.commands?.length) res += "\\n\\nRun: \\\`" + best.solution.commands[0] + "\\\`";
+  if (best.solution.codeChanges?.length) {
+    const c = best.solution.codeChanges[0];
+    res += "\\n\\n🔧 **Auto-fix:** \\\`" + c.file + "\\\`\\nReplace: \\\`" + c.before.slice(0, 50) + "\\\` → \\\`" + c.after.slice(0, 50) + "\\\`";
+  }
+
+  best.metadata.lastUsed = Date.now();
+  best.metadata.useCount++;
+  db.stats.totalLookups++;
+  db.stats.successfulMatches++;
+  try { writeFileSync(ERRORS_DB, JSON.stringify(db, null, 2)); } catch {}
+
+  console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", decision: "continue", reason: res.slice(0, 800) } }));
+} catch {}
+`;
+}
+
 // ============================================================
 // SETTINGS
 // ============================================================
@@ -344,10 +441,16 @@ function updateSettings() {
     console.log("✅ Added PreToolUse hook (RAG suggestion)");
   }
 
-  const errorPath = escapePath(join(HOOKS_DIR, "on-error.js"));
-  if (!settings.hooks.PostToolUse.some(h => h.matcher === "Bash")) {
-    settings.hooks.PostToolUse.push({ matcher: "Bash", hooks: [{ type: "command", command: `node "${errorPath}"`, timeout: 10000 }] });
-    console.log("✅ Added PostToolUse hook (error lookup)");
+  const smartFilesPath = escapePath(join(HOOKS_DIR, "smart-files.js"));
+  if (!settings.hooks.PreToolUse.some(h => h.matcher === "Edit" && h.hooks?.some(hk => hk.command?.includes("smart-files")))) {
+    settings.hooks.PreToolUse.push({ matcher: "Edit", hooks: [{ type: "command", command: `node "${smartFilesPath}"` }] });
+    console.log("✅ Added PreToolUse hook (smart files)");
+  }
+
+  const autoFixPath = escapePath(join(HOOKS_DIR, "auto-fix.js"));
+  if (!settings.hooks.PostToolUse.some(h => h.hooks?.some(hk => hk.command?.includes("auto-fix")))) {
+    settings.hooks.PostToolUse.push({ matcher: "Bash", hooks: [{ type: "command", command: `node "${autoFixPath}"`, timeout: 10000 }] });
+    console.log("✅ Added PostToolUse hook (auto-fix)");
   }
 
   const sessionEndPath = escapePath(join(HOOKS_DIR, "session-end.js"));
@@ -365,7 +468,7 @@ function updateSettings() {
 // ============================================================
 
 function install() {
-  console.log("\n🚀 Installing Claude Toolkit v4.1\n");
+  console.log("\n🚀 Installing Claude Toolkit v4.2\n");
   console.log(`Platform: ${platform()}`);
   console.log(`Project: ${PROJECT_ROOT}\n`);
 
@@ -384,21 +487,24 @@ function install() {
   writeHook("suggest-rag.js", getSuggestRagHook());
   writeHook("on-error.js", getOnErrorHook());
   writeHook("session-end.js", getSessionEndHook());
+  writeHook("smart-files.js", getSmartFilesHook());
+  writeHook("auto-fix.js", getAutoFixHook());
 
   updateSettings();
   updateGitignore(PROJECT_ROOT);
 
   console.log("\n✨ Installation complete!\n");
   console.log("Commands: /rag, /diff, /memory, /session, /errors, /snippets");
-  console.log("\nv4.1 Features:");
+  console.log("\nv4.2 Features:");
   console.log("  - Session continuity (auto-load + auto-save)");
-  console.log("  - Error pattern DB + auto-lookup on failure");
+  console.log("  - Error pattern DB + auto-fix suggestions");
+  console.log("  - Smart file watcher (related files on Edit)");
   console.log("  - Code snippets cache");
   console.log("\nHooks installed:");
   console.log("  - SessionStart: Load session context");
   console.log("  - Stop: Save session state");
-  console.log("  - PostToolUse: Auto error lookup");
-  console.log("  - PreToolUse: RAG suggestion");
+  console.log("  - PostToolUse: Auto-fix suggestions");
+  console.log("  - PreToolUse: RAG suggestion + Smart files");
   console.log("\nRun: pnpm rag:index && pnpm rag:install\n");
 }
 
