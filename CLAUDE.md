@@ -1,5 +1,27 @@
 # Claude Toolkit v5.0 - Instructions OBLIGATOIRES
 
+## 📍 Exécution des commandes
+
+**Toutes les commandes `pnpm rag:*` doivent être exécutées depuis le dossier du toolkit:**
+```bash
+cd plugins/claude-code-toolkit && pnpm rag:context "query" --lazy
+```
+
+---
+
+## 🔄 WORKFLOW OBLIGATOIRE - À SUIVRE SYSTÉMATIQUEMENT
+
+```
+1. CHERCHER   → pnpm rag:context "query" --lazy --no-cache
+2. EXAMINER   → pnpm rag:expand <path:line> -c 10
+3. SI COMPLEXE → pnpm rag:hypothesis start --task "..."
+4. VERROUILLER → pnpm rag:context-lock lock --reason "..."
+5. MODIFIER   → Edit avec précision
+6. COMMIT     → pnpm rag:commit -y
+```
+
+---
+
 ## ⚡ ÉCONOMIE TOKENS - UTILISATION OBLIGATOIRE
 
 | Situation | Commande OBLIGATOIRE | Économie |
@@ -99,18 +121,18 @@ pnpm rag:optimizer -f file.ts         # Vérifier si lecture autorisée
 
 ### Ce qui est AUTOMATIQUE au démarrage de session:
 ```
-✅ pnpm rag:deps --build         (si .rag-deps.json manquant)
-✅ pnpm rag:importance build     (si .rag-importance.json manquant)
-✅ pnpm rag:budget init --limit 50000  (si .rag-budget.json manquant)
+✅ pnpm rag:deps --build         (si .rag/deps.json manquant)
+✅ pnpm rag:importance build     (si .rag/importance.json manquant)
+✅ pnpm rag:budget init --limit 50000  (si .rag/budget.json manquant)
 ✅ pnpm rag:optimizer            (affiche status unifié)
-✅ Charge hypotheses actives     (si .rag-hypothesis.json existe)
+✅ Charge hypotheses actives     (si .rag/hypothesis.json existe)
 ```
 
 ### Ce qui est AUTOMATIQUE en fin de session:
 ```
 ✅ Sauvegarde budget stats dans session
 ✅ Archive hypothèses terminées (0 pending)
-✅ Reset context-lock (supprime .rag-context-state.json)
+✅ Reset context-lock (supprime .rag/context-state.json)
 ✅ Sauvegarde session complète
 ```
 
