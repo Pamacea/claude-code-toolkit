@@ -817,7 +817,7 @@ program
       }
       const graph = buildGraph(store, rootDir);
       saveGraph(rootDir, graph);
-      console.log(chalk.green("✅ Dependency graph saved to .rag-deps.json"));
+      console.log(chalk.green("✅ Dependency graph saved to .rag/deps.json"));
       console.log(formatGraphStats(graph));
       return;
     }
