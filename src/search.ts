@@ -119,6 +119,8 @@ import {
   createBudget,
   loadBudget,
   saveBudget,
+  recordRead,
+  estimateTokens,
   requestBudgetIncrease,
   formatBudgetReport,
   // Hypothesis-Driven Reading
@@ -512,11 +514,13 @@ program
       const lines = content.split("\n");
 
       let output = `<expanded-context ref="${ref}">\n`;
+      let linesRead = 0;
 
       if (targetLine !== null) {
         // Show context around target line
         const start = Math.max(0, targetLine - 1 - contextLines);
         const end = Math.min(lines.length, targetLine - 1 + contextLines + 1);
+        linesRead = end - start;
 
         output += `📄 ${filePath} (lines ${start + 1}-${end})\n\n`;
 
@@ -528,17 +532,28 @@ program
         // Show full file (truncated if too long)
         const maxLines = 100;
         if (lines.length > maxLines) {
+          linesRead = maxLines;
           output += `📄 ${filePath} (first ${maxLines} of ${lines.length} lines)\n\n`;
           for (let i = 0; i < maxLines; i++) {
             output += `${i + 1}│ ${lines[i]}\n`;
           }
           output += `\n... ${lines.length - maxLines} more lines ...\n`;
         } else {
+          linesRead = lines.length;
           output += `📄 ${filePath} (${lines.length} lines)\n\n`;
           for (let i = 0; i < lines.length; i++) {
             output += `${i + 1}│ ${lines[i]}\n`;
           }
         }
+      }
+
+      // Track budget
+      const budget = loadBudget(rootDir);
+      if (budget) {
+        const tokensUsed = estimateTokens(output);
+        recordRead(budget, fullPath, linesRead, "chunks", `expand: ${ref}`);
+        saveBudget(rootDir, budget);
+        output += `\n<!-- Budget: +${tokensUsed} tokens (${budget.consumed}/${budget.totalBudget}) -->`;
       }
 
       output += `</expanded-context>`;
