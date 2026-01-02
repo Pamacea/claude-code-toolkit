@@ -66,17 +66,43 @@ pnpm rag:optimizer
 | **Smart File Watcher** | Show related files (importers/imports) when editing | Better awareness |
 | **Code Snippets Cache** | Store and retrieve reusable code patterns | Faster implementation |
 
+## Installation
+
+### Local Installation (recommended)
+
+```bash
+# Clone into your project root
+git clone https://github.com/Pamacea/claude-code-toolkit.git .claude-code-toolkit
+
+# Install dependencies
+cd .claude-code-toolkit
+pnpm install
+
+# IMPORTANT: Rebuild sharp if using pnpm 10+ (skips build scripts by default)
+npm rebuild sharp
+
+# Build the toolkit
+pnpm build
+cd ..
+```
+
+> **Note:** The `npm rebuild sharp` step is required because pnpm 10+ ignores build scripts by default. Sharp requires native binaries to be compiled.
+
+### Post-install
+
+The postinstall script automatically:
+- Creates `.rag/` directory for index files
+- Installs 8 hooks in `.claude/hooks/`
+- Configures `.gitignore`
+
 ## Quick Start
 
 ```bash
-# Build the toolkit
-cd .claude-code-toolkit && pnpm build && cd ..
-
 # Index the codebase
-pnpm rag:index
+cd .claude-code-toolkit && pnpm rag:index
 
 # Search for code
-pnpm rag:context "state machine transitions" -k 5
+pnpm rag:context "state machine transitions" --lazy -k 5
 ```
 
 ## Commands
