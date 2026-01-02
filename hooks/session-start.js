@@ -5,8 +5,8 @@ import { join } from "path";
 
 const PROJECT_DIR = process.cwd();
 const RAG_DIR = join(PROJECT_DIR, ".rag");
-const TOOLKIT_PATH = "plugins/claude-code-toolkit/dist/search.js";
-const CLI_PATH = "plugins/claude-code-toolkit/dist/cli.js";
+const TOOLKIT_PATH = ".claude-code-toolkit/dist/search.js";
+const CLI_PATH = ".claude-code-toolkit/dist/cli.js";
 
 function safeExec(cmd, options = {}) {
   try {

@@ -70,7 +70,7 @@ pnpm rag:optimizer
 
 ```bash
 # Build the toolkit
-cd plugins/claude-code-toolkit && pnpm build && cd ../..
+cd .claude-code-toolkit && pnpm build && cd ..
 
 # Index the codebase
 pnpm rag:index
@@ -781,7 +781,7 @@ When reading large files (>150 lines), the `auto-truncate` hook:
 ## Architecture
 
 ```
-plugins/claude-code-toolkit/
+.claude-code-toolkit/
 ├── src/
 │   ├── cli.ts              # Index CLI
 │   ├── search.ts           # Search CLI (all commands)
@@ -817,14 +817,14 @@ import {
   search,
   embed,
   initEmbedder
-} from './plugins/claude-code-toolkit/dist/index.js';
+} from './.claude-code-toolkit/dist/index.js';
 
 import {
   loadCache,
   lookupExact,
   lookupSimilar,
   addToCache
-} from './plugins/claude-code-toolkit/dist/cache.js';
+} from './.claude-code-toolkit/dist/cache.js';
 
 await initEmbedder();
 const store = loadStore('.');

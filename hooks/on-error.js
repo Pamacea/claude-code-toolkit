@@ -9,7 +9,7 @@ import { existsSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT_PATH = join(PROJECT_DIR, "plugins/claude-code-toolkit/dist/search.js");
+const TOOLKIT_PATH = join(PROJECT_DIR, ".claude-code-toolkit/dist/search.js");
 
 let inputData;
 try {

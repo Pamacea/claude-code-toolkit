@@ -12,7 +12,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const toolkitRoot = join(__dirname, "..");
-const projectRoot = join(toolkitRoot, "..", "..");
+const projectRoot = join(toolkitRoot, "..");
 
 // Paths
 const ragDir = join(projectRoot, ".rag");
@@ -92,25 +92,25 @@ if (existsSync(packageJsonPath)) {
       console.log("\n💡 Add these scripts to your package.json:");
       console.log(`
 "scripts": {
-  "rag:index": "node plugins/claude-code-toolkit/dist/cli.js index -d .",
-  "rag:context": "node plugins/claude-code-toolkit/dist/search.js context",
-  "rag:expand": "node plugins/claude-code-toolkit/dist/search.js expand",
-  "rag:deps": "node plugins/claude-code-toolkit/dist/search.js deps -d .",
-  "rag:diff": "node plugins/claude-code-toolkit/dist/search.js diff -d .",
-  "rag:commit": "node plugins/claude-code-toolkit/dist/search.js commit -d .",
-  "rag:budget": "node plugins/claude-code-toolkit/dist/search.js budget -d .",
-  "rag:hypothesis": "node plugins/claude-code-toolkit/dist/search.js hypothesis -d .",
-  "rag:context-lock": "node plugins/claude-code-toolkit/dist/search.js context-lock -d .",
-  "rag:optimizer": "node plugins/claude-code-toolkit/dist/search.js optimizer -d .",
-  "rag:contracts": "node plugins/claude-code-toolkit/dist/search.js contracts -d .",
-  "rag:locality": "node plugins/claude-code-toolkit/dist/search.js locality -d .",
-  "rag:importance": "node plugins/claude-code-toolkit/dist/search.js importance -d .",
-  "rag:risk": "node plugins/claude-code-toolkit/dist/search.js risk -d .",
-  "rag:memory": "node plugins/claude-code-toolkit/dist/search.js memory -d .",
-  "rag:session": "node plugins/claude-code-toolkit/dist/search.js session -d .",
-  "rag:errors": "node plugins/claude-code-toolkit/dist/search.js errors -d .",
-  "rag:snippets": "node plugins/claude-code-toolkit/dist/search.js snippets -d .",
-  "rag:watch": "node plugins/claude-code-toolkit/dist/search.js watch -d ."
+  "rag:index": "node .claude-code-toolkit/dist/cli.js index -d .",
+  "rag:context": "node .claude-code-toolkit/dist/search.js context",
+  "rag:expand": "node .claude-code-toolkit/dist/search.js expand",
+  "rag:deps": "node .claude-code-toolkit/dist/search.js deps -d .",
+  "rag:diff": "node .claude-code-toolkit/dist/search.js diff -d .",
+  "rag:commit": "node .claude-code-toolkit/dist/search.js commit -d .",
+  "rag:budget": "node .claude-code-toolkit/dist/search.js budget -d .",
+  "rag:hypothesis": "node .claude-code-toolkit/dist/search.js hypothesis -d .",
+  "rag:context-lock": "node .claude-code-toolkit/dist/search.js context-lock -d .",
+  "rag:optimizer": "node .claude-code-toolkit/dist/search.js optimizer -d .",
+  "rag:contracts": "node .claude-code-toolkit/dist/search.js contracts -d .",
+  "rag:locality": "node .claude-code-toolkit/dist/search.js locality -d .",
+  "rag:importance": "node .claude-code-toolkit/dist/search.js importance -d .",
+  "rag:risk": "node .claude-code-toolkit/dist/search.js risk -d .",
+  "rag:memory": "node .claude-code-toolkit/dist/search.js memory -d .",
+  "rag:session": "node .claude-code-toolkit/dist/search.js session -d .",
+  "rag:errors": "node .claude-code-toolkit/dist/search.js errors -d .",
+  "rag:snippets": "node .claude-code-toolkit/dist/search.js snippets -d .",
+  "rag:watch": "node .claude-code-toolkit/dist/search.js watch -d ."
 }`);
     } else {
       console.log("✓ rag: scripts already present");
@@ -124,4 +124,4 @@ console.log("\n✅ Setup complete!");
 console.log("\nNext steps:");
 console.log("  1. Run: pnpm rag:index");
 console.log("  2. Search: pnpm rag:context \"your query\" --lazy");
-console.log("  3. Check docs: plugins/claude-code-toolkit/CLAUDE.md");
+console.log("  3. Check docs: .claude-code-toolkit/CLAUDE.md");

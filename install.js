@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import { homedir, platform } from "os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = join(__dirname, "../..");
+const PROJECT_ROOT = join(__dirname, "..");
 const IS_WINDOWS = platform() === "win32";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
@@ -15,9 +15,14 @@ const HOOKS_DIR = join(CLAUDE_DIR, "hooks");
 
 // Files that should be added to .gitignore
 const GENERATED_FILES = [
-  ".rag/",
-  ".rag-*.json",  // Legacy files
+  ".rag-index.json",
+  ".rag-cache.json",
+  ".rag-deps.json",
+  ".rag-hashes.json",
   ".claude-memory.json",
+  ".rag-session.json",
+  ".rag-errors.json",
+  ".rag-snippets.json",
 ];
 
 function ensureDir(dir) {
@@ -77,7 +82,7 @@ Search the indexed codebase using semantic search.
 \`/rag <query>\`
 
 ## Instructions
-Run: \`node plugins/claude-code-toolkit/dist/search.js context "$ARGUMENTS" -d . -k 8\`
+Run: \`node .claude-code-toolkit/dist/search.js context "$ARGUMENTS" -d . -k 8\`
 
 ## Options
 - \`-k <number>\` - Number of results (default: 8)
@@ -93,7 +98,7 @@ Get structured context from git diff.
 \`/diff [options]\`
 
 ## Instructions
-Run: \`node plugins/claude-code-toolkit/dist/search.js diff -d . $ARGUMENTS\`
+Run: \`node .claude-code-toolkit/dist/search.js diff -d . $ARGUMENTS\`
 
 ## Options
 - \`--staged\` - Only staged changes
@@ -109,7 +114,7 @@ Get auto-generated project summary.
 \`/memory\`
 
 ## Instructions
-Run: \`node plugins/claude-code-toolkit/dist/search.js memory -d .\`
+Run: \`node .claude-code-toolkit/dist/search.js memory -d .\`
 
 ## Options
 - \`--generate\` - Force regeneration
@@ -124,7 +129,7 @@ Get session summary for context continuity. Auto-saved on session end.
 \`/session [options]\`
 
 ## Instructions
-Run: \`node plugins/claude-code-toolkit/dist/search.js session -d . $ARGUMENTS\`
+Run: \`node .claude-code-toolkit/dist/search.js session -d . $ARGUMENTS\`
 
 ## Options
 - \`--compact\` - Short summary
@@ -144,8 +149,8 @@ Search and manage error patterns database.
 \`/errors [action] [options]\`
 
 ## Instructions
-Search: \`node plugins/claude-code-toolkit/dist/search.js errors find -m "error message" -d .\`
-Add: \`node plugins/claude-code-toolkit/dist/search.js errors add -t "Type" -m "msg" -s "solution" -d .\`
+Search: \`node .claude-code-toolkit/dist/search.js errors find -m "error message" -d .\`
+Add: \`node .claude-code-toolkit/dist/search.js errors add -t "Type" -m "msg" -s "solution" -d .\`
 
 ## Options
 - \`find -m "msg"\` - Find matching pattern
@@ -162,8 +167,8 @@ Search and manage code snippets cache.
 \`/snippets [action] [options]\`
 
 ## Instructions
-Search: \`node plugins/claude-code-toolkit/dist/search.js snippets --search "query" -d .\`
-Add: \`node plugins/claude-code-toolkit/dist/search.js snippets add -n "name" --code "code" -d .\`
+Search: \`node .claude-code-toolkit/dist/search.js snippets --search "query" -d .\`
+Add: \`node .claude-code-toolkit/dist/search.js snippets add -n "name" --code "code" -d .\`
 
 ## Options
 - \`--search "query"\` - Search snippets
@@ -183,7 +188,7 @@ import { existsSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT = "plugins/claude-code-toolkit/dist/search.js";
+const TOOLKIT = ".claude-code-toolkit/dist/search.js";
 
 function safeExec(cmd) {
   try {
@@ -243,7 +248,7 @@ import { execSync } from "child_process";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT = join(PROJECT_DIR, "plugins/claude-code-toolkit/dist/search.js");
+const TOOLKIT = join(PROJECT_DIR, ".claude-code-toolkit/dist/search.js");
 
 let input;
 try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
@@ -275,8 +280,7 @@ import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const RAG_DIR = join(PROJECT_DIR, ".rag");
-const SESSION_FILE = join(RAG_DIR, "session.json");
+const SESSION_FILE = join(PROJECT_DIR, ".rag-session.json");
 
 function safeExec(cmd) {
   try { return execSync(cmd, { encoding: "utf-8", cwd: PROJECT_DIR, timeout: 10000 }).trim(); }
@@ -317,7 +321,7 @@ import { readFileSync, existsSync } from "fs";
 import { join, basename } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const DEPS_FILE = join(PROJECT_DIR, ".rag", "deps.json");
+const DEPS_FILE = join(PROJECT_DIR, ".rag-deps.json");
 
 let input;
 try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
@@ -360,7 +364,7 @@ import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const ERRORS_DB = join(PROJECT_DIR, ".rag", "errors.json");
+const ERRORS_DB = join(PROJECT_DIR, ".rag-errors.json");
 
 let input;
 try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
@@ -508,7 +512,7 @@ function updateSettings() {
 // ============================================================
 
 function install() {
-  console.log("\n🚀 Installing Claude Toolkit v5.0\n");
+  console.log("\n🚀 Installing Claude Toolkit v4.3\n");
   console.log(`Platform: ${platform()}`);
   console.log(`Project: ${PROJECT_ROOT}\n`);
 
@@ -536,20 +540,17 @@ function install() {
 
   console.log("\n✨ Installation complete!\n");
   console.log("Commands: /rag, /diff, /memory, /session, /errors, /snippets");
-  console.log("\nv5.0 Features:");
-  console.log("  - New .rag/ directory for all generated files");
-  console.log("  - Budget Manager: pnpm rag:budget");
-  console.log("  - Hypothesis-Driven: pnpm rag:hypothesis");
-  console.log("  - Context Lock: pnpm rag:context-lock");
-  console.log("  - API Contracts: pnpm rag:contracts");
-  console.log("  - Importance Index: pnpm rag:importance");
-  console.log("  - Risk Assessment: pnpm rag:risk");
-  console.log("  - Unified Optimizer: pnpm rag:optimizer");
+  console.log("\nv4.3 Features:");
+  console.log("  - Lazy loading: --lazy + rag:expand (max token savings)");
+  console.log("  - Auto-truncate: large files auto-summarized");
+  console.log("  - Session continuity (auto-load + auto-save)");
+  console.log("  - Error pattern DB + auto-fix suggestions");
+  console.log("  - Smart file watcher (related files on Edit)");
   console.log("\nHooks installed:");
-  console.log("  - SessionStart: Load context + init optimizer");
-  console.log("  - Stop: Save session + budget stats");
-  console.log("  - PostToolUse: Auto-fix + Auto-truncate + Budget tracking");
-  console.log("  - PreToolUse: RAG suggestion + Smart files + Read guard");
+  console.log("  - SessionStart: Load session context");
+  console.log("  - Stop: Save session state");
+  console.log("  - PostToolUse: Auto-fix + Auto-truncate");
+  console.log("  - PreToolUse: RAG suggestion + Smart files");
   console.log("\nRun: pnpm rag:index && pnpm rag:install\n");
 }
 

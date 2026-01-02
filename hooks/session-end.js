@@ -9,7 +9,7 @@ import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const RAG_DIR = join(PROJECT_DIR, ".rag");
-const TOOLKIT_PATH = join(PROJECT_DIR, "plugins/claude-code-toolkit/dist/search.js");
+const TOOLKIT_PATH = join(PROJECT_DIR, ".claude-code-toolkit/dist/search.js");
 const SESSION_FILE = join(RAG_DIR, "session.json");
 const BUDGET_FILE = join(RAG_DIR, "budget.json");
 const HYPOTHESIS_FILE = join(RAG_DIR, "hypothesis.json");

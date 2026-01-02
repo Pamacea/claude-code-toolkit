@@ -4,7 +4,7 @@
 
 **Toutes les commandes `pnpm rag:*` doivent être exécutées depuis le dossier du toolkit:**
 ```bash
-cd plugins/claude-code-toolkit && pnpm rag:context "query" --lazy
+cd .claude-code-toolkit && pnpm rag:context "query" --lazy
 ```
 
 ---
