@@ -56,6 +56,70 @@ for (const hook of hooks) {
 }
 console.log(`✅ Installed ${hooksInstalled} hooks to .claude/hooks/`);
 
+// 2b. Configure hooks in settings.local.json
+const settingsPath = join(projectRoot, ".claude", "settings.local.json");
+let settings: any = { permissions: { allow: [], defaultMode: "bypassPermissions" }, hooks: {} };
+
+if (existsSync(settingsPath)) {
+  try {
+    settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+  } catch {}
+}
+
+// Ensure hooks configuration exists
+if (!settings.hooks) settings.hooks = {};
+
+// Configure all hook triggers
+settings.hooks = {
+  ...settings.hooks,
+  SessionStart: [
+    {
+      hooks: [
+        { type: "command", command: "node .claude/hooks/session-start.js", timeout: 180000 }
+      ]
+    }
+  ],
+  Stop: [
+    {
+      hooks: [
+        { type: "command", command: "node .claude/hooks/session-end.js", timeout: 15000 }
+      ]
+    }
+  ],
+  PreToolUse: [
+    {
+      matcher: "Read",
+      hooks: [
+        { type: "command", command: "node .claude/hooks/read-guard.js", timeout: 5000 }
+      ]
+    },
+    {
+      matcher: "Edit",
+      hooks: [
+        { type: "command", command: "node .claude/hooks/smart-files.js", timeout: 5000 }
+      ]
+    }
+  ],
+  PostToolUse: [
+    {
+      matcher: "Bash",
+      hooks: [
+        { type: "command", command: "node .claude/hooks/auto-fix.js", timeout: 10000 }
+      ]
+    },
+    {
+      matcher: "Read",
+      hooks: [
+        { type: "command", command: "node .claude/hooks/auto-truncate.js", timeout: 5000 },
+        { type: "command", command: "node .claude/hooks/budget-tracker.js", timeout: 5000 }
+      ]
+    }
+  ]
+};
+
+writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+console.log("✅ Configured hooks in .claude/settings.local.json");
+
 // 3. Update .gitignore
 const gitignorePath = join(projectRoot, ".gitignore");
 const ragIgnoreEntry = ".rag/";
