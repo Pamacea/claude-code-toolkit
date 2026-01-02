@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
+import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface ErrorPattern {
   id: string;
@@ -55,7 +56,6 @@ export interface DBStats {
   lastUpdated: number;
 }
 
-const DB_FILE = ".rag-errors.json";
 const DB_VERSION = "1.0.0";
 const MAX_PATTERNS = 200;
 
@@ -63,7 +63,7 @@ const MAX_PATTERNS = 200;
  * Get DB file path
  */
 export function getDBPath(rootDir: string): string {
-  return path.join(rootDir, DB_FILE);
+  return getRagPath(rootDir, "ERRORS");
 }
 
 /**
@@ -122,6 +122,7 @@ export function loadErrorDB(rootDir: string): ErrorPatternDB {
  * Save error pattern DB
  */
 export function saveErrorDB(rootDir: string, db: ErrorPatternDB): void {
+  ensureRagDir(rootDir);
   const dbPath = getDBPath(rootDir);
   db.stats.lastUpdated = Date.now();
   fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));

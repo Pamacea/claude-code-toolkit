@@ -6,7 +6,7 @@
  */
 
 import { execSync } from "child_process";
-import { getDiffContext, getDiffStats, getChangedFiles, type DiffSummary } from "./diff-context.js";
+import { getDiffContext, getDiffStats, type DiffSummary } from "./diff-context.js";
 
 export interface CommitSuggestion {
   type: CommitType;
@@ -166,7 +166,7 @@ function extractChanges(diffContent: string): string[] {
 /**
  * Determine commit type from file changes
  */
-function inferCommitType(files: FileAnalysis[], diffSummary: DiffSummary): CommitType {
+function inferCommitType(files: FileAnalysis[], _diffSummary: DiffSummary): CommitType {
   const categories = files.map((f) => f.category);
   const allChanges = files.flatMap((f) => f.changes);
 
@@ -260,8 +260,8 @@ function inferScope(files: FileAnalysis[]): string | null {
  * Generate commit subject from changes
  */
 function generateSubject(
-  type: CommitType,
-  scope: string | null,
+  _type: CommitType,
+  _scope: string | null,
   files: FileAnalysis[]
 ): string {
   const allChanges = files.flatMap((f) => f.changes);

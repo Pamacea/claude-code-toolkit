@@ -13,6 +13,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { loadStore, type IndexedChunk, type VectorStore } from "./store.js";
+import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface DependencyNode {
   filePath: string;
@@ -60,7 +61,6 @@ export interface GraphStats {
   avgExportsPerFile: number;
 }
 
-const GRAPH_FILE = ".rag-deps.json";
 const GRAPH_VERSION = "1.0.0";
 
 /**
@@ -452,7 +452,8 @@ export function getImpactAnalysis(graph: DependencyGraph, filePath: string): {
  * Save graph to disk
  */
 export function saveGraph(rootDir: string, graph: DependencyGraph): void {
-  const graphPath = path.join(rootDir, GRAPH_FILE);
+  ensureRagDir(rootDir);
+  const graphPath = getRagPath(rootDir, "DEPS");
 
   // Convert Map to object for JSON serialization
   const serializable = {
@@ -471,7 +472,7 @@ export function saveGraph(rootDir: string, graph: DependencyGraph): void {
  * Load graph from disk
  */
 export function loadGraph(rootDir: string): DependencyGraph | null {
-  const graphPath = path.join(rootDir, GRAPH_FILE);
+  const graphPath = getRagPath(rootDir, "DEPS");
 
   if (!fs.existsSync(graphPath)) {
     return null;

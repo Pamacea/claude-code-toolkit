@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 /**
  * Stop hook - Save session state before ending
- * Captures: modified files, last commit, work context
+ * Captures: modified files, last commit, work context, budget stats
  */
 import { execSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+const RAG_DIR = join(PROJECT_DIR, ".rag");
 const TOOLKIT_PATH = join(PROJECT_DIR, "plugins/claude-code-toolkit/dist/search.js");
-const SESSION_FILE = join(PROJECT_DIR, ".rag-session.json");
+const SESSION_FILE = join(RAG_DIR, "session.json");
+const BUDGET_FILE = join(RAG_DIR, "budget.json");
+const HYPOTHESIS_FILE = join(RAG_DIR, "hypothesis.json");
+const CONTEXT_LOCK_FILE = join(RAG_DIR, "context-state.json");
 
 function safeExec(cmd) {
   try {
@@ -37,6 +41,59 @@ function getCurrentBranch() {
   return safeExec("git branch --show-current") || "unknown";
 }
 
+function getBudgetStats() {
+  if (!existsSync(BUDGET_FILE)) return null;
+  try {
+    const budget = JSON.parse(readFileSync(BUDGET_FILE, "utf-8"));
+    return {
+      consumed: budget.consumed || 0,
+      total: budget.totalBudget || 50000,
+      reads: budget.reads?.length || 0,
+      alerts: budget.alerts?.length || 0
+    };
+  } catch { return null; }
+}
+
+function getHypothesisStats() {
+  if (!existsSync(HYPOTHESIS_FILE)) return null;
+  try {
+    const data = JSON.parse(readFileSync(HYPOTHESIS_FILE, "utf-8"));
+    return {
+      task: data.task,
+      total: data.hypotheses?.length || 0,
+      validated: data.hypotheses?.filter(h => h.status === "validated")?.length || 0,
+      rejected: data.hypotheses?.filter(h => h.status === "rejected")?.length || 0,
+      pending: data.hypotheses?.filter(h => h.status === "pending")?.length || 0
+    };
+  } catch { return null; }
+}
+
+function cleanupSessionFiles() {
+  // Reset context lock at end of session
+  if (existsSync(CONTEXT_LOCK_FILE)) {
+    try { unlinkSync(CONTEXT_LOCK_FILE); } catch {}
+  }
+
+  // Archive completed hypothesis sessions (no pending)
+  const hypothesisStats = getHypothesisStats();
+  if (hypothesisStats && hypothesisStats.pending === 0) {
+    // All hypotheses resolved, can archive
+    try {
+      const archivePath = join(RAG_DIR, "hypothesis-archive.json");
+      let archive = [];
+      if (existsSync(archivePath)) {
+        archive = JSON.parse(readFileSync(archivePath, "utf-8"));
+      }
+      const current = JSON.parse(readFileSync(HYPOTHESIS_FILE, "utf-8"));
+      current.archivedAt = new Date().toISOString();
+      archive.unshift(current);
+      archive = archive.slice(0, 10); // Keep last 10
+      writeFileSync(archivePath, JSON.stringify(archive, null, 2));
+      unlinkSync(HYPOTHESIS_FILE);
+    } catch {}
+  }
+}
+
 try {
   // Load existing session or create new
   let session = { version: "1.0.0" };
@@ -52,7 +109,7 @@ try {
   session.endedAt = now;
   session.branch = getCurrentBranch();
   session.modifiedFiles = getModifiedFiles();
-  
+
   const lastCommit = getLastCommit();
   if (lastCommit) {
     session.lastCommit = lastCommit;
@@ -76,16 +133,32 @@ try {
     session.duration = Math.round((now - session.startedAt) / 60000); // minutes
   }
 
+  // Add budget stats to session
+  const budgetStats = getBudgetStats();
+  if (budgetStats) {
+    session.budgetStats = budgetStats;
+  }
+
+  // Add hypothesis stats to session
+  const hypothesisStats = getHypothesisStats();
+  if (hypothesisStats) {
+    session.hypothesisStats = hypothesisStats;
+  }
+
   // Save session
   writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2));
-  
+
+  // Cleanup temporary session files
+  cleanupSessionFiles();
+
   // Output summary
   const duration = session.duration ? `${session.duration}min` : "unknown";
   const files = session.modifiedFiles?.length || 0;
   const commit = session.lastCommit?.message?.slice(0, 40) || "none";
-  
-  console.log(`📝 Session saved: ${duration} | ${files} files | Last: ${commit}`);
-  
+  const budget = budgetStats ? `${Math.round(budgetStats.consumed/budgetStats.total*100)}% budget` : "";
+
+  console.log(`📝 Session saved: ${duration} | ${files} files | ${budget} | Last: ${commit}`);
+
 } catch (e) {
   // Silent fail - don't block session end
   console.log("Session save skipped");

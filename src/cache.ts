@@ -1,7 +1,7 @@
 import * as fs from "fs";
-import * as path from "path";
 import * as crypto from "crypto";
 import { cosineSimilarity } from "./embedder.js";
+import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface CacheEntry {
   query: string;
@@ -38,7 +38,6 @@ export interface CacheStats {
   lastCleanup: number;
 }
 
-const CACHE_FILE = ".rag-cache.json";
 const CACHE_VERSION = "1.0.0";
 const DEFAULT_TTL = 15 * 60 * 1000; // 15 minutes
 const MAX_CACHE_SIZE = 100; // Max entries
@@ -71,7 +70,7 @@ export function hashQuery(normalizedQuery: string): string {
  * Get cache file path
  */
 export function getCachePath(rootDir: string): string {
-  return path.join(rootDir, CACHE_FILE);
+  return getRagPath(rootDir, "CACHE");
 }
 
 /**
@@ -103,6 +102,7 @@ export function loadCache(rootDir: string): SemanticCache {
  * Save cache to disk
  */
 export function saveCache(rootDir: string, cache: SemanticCache): void {
+  ensureRagDir(rootDir);
   const cachePath = getCachePath(rootDir);
   fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2));
 }

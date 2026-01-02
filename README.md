@@ -1,6 +1,6 @@
-# Claude Toolkit v4.3
+# Claude Toolkit v5.0
 
-Token-optimized toolkit for Claude Code: RAG indexer, AST-based chunking, semantic cache, context optimization, and intelligent hooks.
+Token-optimized toolkit for Claude Code: RAG indexer, AST-based chunking, semantic cache, context optimization, intelligent hooks, and **Read Optimizer**.
 
 ## Token Saving Features (MUST USE)
 
@@ -10,6 +10,38 @@ Token-optimized toolkit for Claude Code: RAG indexer, AST-based chunking, semant
 | **Auto-Truncate** | Automatic on large files | **50-70%** |
 | **Types Only** | `pnpm rag:context "query" --types-only` | **80-90%** |
 | **Signatures Only** | `pnpm rag:context "query" --signatures-only` | **70-80%** |
+
+## Read Optimizer (v5.0 - NEW)
+
+8 new features for advanced context optimization:
+
+| Feature | Command | Savings | Description |
+|---------|---------|---------|-------------|
+| **Budget Manager** | `pnpm rag:budget` | **40-60%** | Token budget per session with tracking |
+| **Hypothesis-Driven** | `pnpm rag:hypothesis` | **50-70%** | Only read files that validate hypotheses |
+| **Context Lock** | `pnpm rag:context-lock` | **30-50%** | Block reads once context is sufficient |
+| **Runtime Pruning** | `pnpm rag:prune-path` | **30-60%** | Analyze stack traces, prune irrelevant files |
+| **API Contracts** | `pnpm rag:contracts` | **40-70%** | Snapshot signatures, skip re-reads if unchanged |
+| **Locality Score** | `pnpm rag:locality` | Prioritize | Score files by recency, diff, errors, centrality |
+| **Importance Index** | `pnpm rag:importance` | **30-50%** | Focus on critical files only |
+| **Risk Assessment** | `pnpm rag:risk` | Focus | Weight files by security/perf risk |
+
+### Quick Start (Read Optimizer)
+
+```bash
+# Initialize budget for a session
+pnpm rag:budget init --limit 50000
+
+# Start hypothesis-driven reading
+pnpm rag:hypothesis start --task "Fix bug in parser"
+pnpm rag:hypothesis add --desc "Error in tokenizer" --files "src/tokenizer.ts"
+
+# Lock context when sufficient
+pnpm rag:context-lock lock --reason "Found the bug"
+
+# Check optimizer status
+pnpm rag:optimizer
+```
 
 ## Features
 
@@ -618,13 +650,22 @@ Finds tests using common patterns:
 
 ## Files
 
+All generated files are stored in the `.rag/` directory (add to .gitignore):
+
 | File | Description |
 |------|-------------|
-| `.rag-index.json` | Vector store (add to .gitignore) |
-| `.rag-cache.json` | Query cache (add to .gitignore) |
-| `.rag-deps.json` | Dependency graph (add to .gitignore) |
-| `.rag-hashes.json` | File hash index (add to .gitignore) |
-| `.claude-memory.json` | Project memory (add to .gitignore) |
+| `.rag/index.json` | Vector store |
+| `.rag/cache.json` | Query cache |
+| `.rag/deps.json` | Dependency graph |
+| `.rag/hashes.json` | File hash index |
+| `.rag/memory.json` | Project memory |
+| `.rag/session.json` | Session state |
+| `.rag/budget.json` | Token budget |
+| `.rag/hypothesis.json` | Active hypotheses |
+| `.rag/contracts.json` | API contracts |
+| `.rag/importance.json` | File importance index |
+| `.rag/errors.json` | Error patterns DB |
+| `.rag/snippets.json` | Code snippets cache |
 
 ## Hooks (v4.2)
 

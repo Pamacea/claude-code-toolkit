@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
+import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface ProjectMemory {
   version: string;
@@ -51,14 +52,13 @@ export interface RecentActivity {
   activeBranch: string;
 }
 
-const MEMORY_FILE = ".claude-memory.json";
 const MEMORY_VERSION = "1.0.0";
 
 /**
  * Get memory file path
  */
 export function getMemoryPath(rootDir: string): string {
-  return path.join(rootDir, MEMORY_FILE);
+  return getRagPath(rootDir, "MEMORY");
 }
 
 /**
@@ -83,6 +83,7 @@ export function loadMemory(rootDir: string): ProjectMemory | null {
  * Save memory to disk
  */
 export function saveMemory(rootDir: string, memory: ProjectMemory): void {
+  ensureRagDir(rootDir);
   const memoryPath = getMemoryPath(rootDir);
   fs.writeFileSync(memoryPath, JSON.stringify(memory, null, 2));
 }

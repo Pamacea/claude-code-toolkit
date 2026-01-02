@@ -1,7 +1,7 @@
 import * as fs from "fs";
-import * as path from "path";
 import { type Chunk } from "./chunker.js";
 import { cosineSimilarity } from "./embedder.js";
+import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface IndexedChunk extends Chunk {
   embedding: number[];
@@ -17,10 +17,8 @@ export interface VectorStore {
   chunks: IndexedChunk[];
 }
 
-const STORE_FILE = ".rag-index.json";
-
 export function getStorePath(rootDir: string): string {
-  return path.join(rootDir, STORE_FILE);
+  return getRagPath(rootDir, "INDEX");
 }
 
 export function loadStore(rootDir: string): VectorStore | null {
@@ -37,6 +35,7 @@ export function loadStore(rootDir: string): VectorStore | null {
 }
 
 export function saveStore(rootDir: string, store: VectorStore): void {
+  ensureRagDir(rootDir);
   const storePath = getStorePath(rootDir);
   fs.writeFileSync(storePath, JSON.stringify(store, null, 2));
 }

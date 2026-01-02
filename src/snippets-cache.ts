@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
+import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface CodeSnippet {
   id: string;
@@ -58,7 +59,6 @@ export interface CacheStats {
   lastUpdated: number;
 }
 
-const CACHE_FILE = ".rag-snippets.json";
 const CACHE_VERSION = "1.0.0";
 const MAX_SNIPPETS = 150;
 
@@ -66,7 +66,7 @@ const MAX_SNIPPETS = 150;
  * Get cache file path
  */
 export function getCachePath(rootDir: string): string {
-  return path.join(rootDir, CACHE_FILE);
+  return getRagPath(rootDir, "SNIPPETS");
 }
 
 /**
@@ -216,6 +216,7 @@ export function loadSnippetsCache(rootDir: string): SnippetsCache {
  * Save snippets cache
  */
 export function saveSnippetsCache(rootDir: string, cache: SnippetsCache): void {
+  ensureRagDir(rootDir);
   const cachePath = getCachePath(rootDir);
   cache.stats.lastUpdated = Date.now();
   fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2));

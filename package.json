@@ -1,7 +1,7 @@
 {
-  "name": "@anima/claude-toolkit",
-  "version": "1.0.0",
-  "description": "Claude Code toolkit - RAG indexer, memory, context optimization",
+  "name": "claude-code-toolkit",
+  "version": "5.0.0",
+  "description": "Claude Code toolkit v5.0 - RAG indexer, read optimizer, token budget, context optimization",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

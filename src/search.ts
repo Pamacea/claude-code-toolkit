@@ -2,9 +2,10 @@
 import { program } from "commander";
 import chalk from "chalk";
 import * as path from "path";
+import * as fs from "fs";
 import * as readline from "readline";
 import { initEmbedder, embed } from "./embedder.js";
-import { loadStore, search, formatSearchResults } from "./store.js";
+import { loadStore, search, formatSearchResults, type IndexedChunk } from "./store.js";
 import {
   loadCache,
   saveCache,
@@ -36,7 +37,6 @@ import {
   getTemplate,
   getTemplatesByCategory,
   listTemplates,
-  fillTemplate,
   searchTemplates,
   suggestTemplates,
   formatTemplate,
@@ -47,11 +47,8 @@ import {
   buildGraph,
   loadGraph,
   saveGraph,
-  getImporters,
-  getDependencies,
   findExport,
   findDeadExports,
-  getImpactAnalysis,
   formatGraphStats,
   formatFileDependencies,
   formatImpactAnalysis,
@@ -59,7 +56,6 @@ import {
 import {
   incrementalReindex,
   checkForChanges,
-  needsReindex,
   getRecentlyModified,
   formatWatcherStats,
 } from "./file-watcher.js";
@@ -70,7 +66,6 @@ import {
   formatTestContext,
   selectSmartContext,
   formatSmartContext,
-  detectTaskType,
 } from "./smart-context.js";
 import {
   generateCommitMessage,
@@ -80,7 +75,97 @@ import {
   hasStagedChanges,
   hasUnstagedChanges,
 } from "./auto-commit.js";
-import {  loadSession,  saveSession,  createSession,  generateSummary,  formatSessionSummary,  formatCompactSummary,  clearSession,  isSessionStale,  setWorkContext,} from "./session-summary.js";import {  loadErrorDB,  saveErrorDB,  addErrorPattern,  findErrorPattern,  searchByKeyword,  searchByTag,  getMostCommon,  getRecentErrors,  deletePattern,  formatErrorPattern,  formatErrorList,  getDBStats as getErrorDBStats,} from "./error-patterns.js";import {  loadSnippetsCache,  saveSnippetsCache,  addSnippet,  findSnippet,  searchSnippets,  getByCategory,  getMostUsed as getMostUsedSnippets,  getRecentSnippets,  deleteSnippet,  formatSnippet,  formatSnippetList,  getCacheStats as getSnippetStats,  recordUsage,  fillSnippet,} from "./snippets-cache.js";
+import {
+  loadSession,
+  saveSession,
+  createSession,
+  generateSummary,
+  formatSessionSummary,
+  formatCompactSummary,
+  clearSession,
+  setWorkContext,
+} from "./session-summary.js";
+import {
+  loadErrorDB,
+  saveErrorDB,
+  addErrorPattern,
+  findErrorPattern,
+  searchByKeyword,
+  searchByTag,
+  getMostCommon,
+  getRecentErrors,
+  deletePattern,
+  formatErrorPattern,
+  formatErrorList,
+  getDBStats as getErrorDBStats,
+} from "./error-patterns.js";
+import {
+  loadSnippetsCache,
+  saveSnippetsCache,
+  addSnippet,
+  findSnippet,
+  searchSnippets,
+  getByCategory,
+  getMostUsed as getMostUsedSnippets,
+  getRecentSnippets,
+  deleteSnippet,
+  formatSnippet,
+  formatSnippetList,
+  getCacheStats as getSnippetStats,
+  recordUsage,
+} from "./snippets-cache.js";
+import {
+  // Budget Manager
+  createBudget,
+  loadBudget,
+  saveBudget,
+  requestBudgetIncrease,
+  formatBudgetReport,
+  // Hypothesis-Driven Reading
+  createHypothesisSession,
+  loadHypothesisSession,
+  saveHypothesisSession,
+  addHypothesis,
+  validateHypothesis,
+  isReadAllowedByHypothesis,
+  formatHypothesisReport,
+  // Context Refusal Mode
+  createContextState,
+  loadContextState,
+  saveContextState,
+  declareSufficientContext,
+  unlockContext,
+  attemptContextRead,
+  addContextOverride,
+  formatContextState,
+  // Runtime Path Pruning
+  analyzeRuntimePath,
+  formatRuntimePath,
+  // API Contract Snapshot
+  loadContractSnapshot,
+  saveContractSnapshot,
+  createContractSnapshot,
+  updateContractSnapshot,
+  hasContractChanged,
+  formatContractDiff,
+  // Error Locality Score
+  calculateLocalityScore,
+  rankFilesByLocality,
+  formatLocalityReport,
+  // Top-K Importance Index
+  loadImportanceIndex,
+  saveImportanceIndex,
+  buildImportanceIndex,
+  isInTopK,
+  formatImportanceReport,
+  // Risk-Weighted Review
+  assessFileRisk,
+  assessDiffRisk,
+  formatRiskReport,
+  // Unified Optimizer
+  shouldAllowRead,
+  formatOptimizerStatus,
+} from "./read-optimizer.js";
 
 program
   .name("rag-search")
@@ -311,7 +396,7 @@ program
  */
 function formatResultsWithOptions(
   question: string,
-  results: Array<{ chunk: any; score: number }>,
+  results: Array<{ chunk: IndexedChunk; score: number }>,
   options: { withDeps?: boolean; signaturesOnly?: boolean }
 ): string {
   let output = `<rag-context query="${question}">\n`;
@@ -353,7 +438,7 @@ function formatResultsWithOptions(
  */
 function formatLazyResults(
   question: string,
-  results: Array<{ chunk: any; score: number }>
+  results: Array<{ chunk: IndexedChunk; score: number }>
 ): string {
   let output = `<lazy-context query="${question}" count="${results.length}">\n`;
   output += `💡 Use \`pnpm rag:expand <ref>\` to load full content\n\n`;
@@ -1227,6 +1312,564 @@ program
         console.log(`  ${lang}: ${count}`);
       }
     }
+  });
+
+// ============================================
+// READ OPTIMIZER - BUDGET MANAGER
+// ============================================
+
+program
+  .command("budget [action]")
+  .description("Manage read budget for token optimization")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("--limit <tokens>", "Set budget limit", "50000")
+  .option("--reason <text>", "Justification for budget increase")
+  .option("--add <tokens>", "Add tokens to budget")
+  .action((action, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    // Initialize new budget
+    if (action === "init" || action === "new") {
+      const budget = createBudget();
+      budget.totalBudget = parseInt(options.limit);
+      saveBudget(rootDir, budget);
+      console.log(chalk.green(`✅ Budget initialized: ${budget.totalBudget.toLocaleString()} tokens`));
+      console.log(chalk.gray(`Session: ${budget.sessionId}`));
+      return;
+    }
+
+    // Reset budget
+    if (action === "reset") {
+      const budget = createBudget();
+      budget.totalBudget = parseInt(options.limit);
+      saveBudget(rootDir, budget);
+      console.log(chalk.green("Budget reset."));
+      return;
+    }
+
+    // Increase budget with justification
+    if (action === "increase" && options.add) {
+      let budget = loadBudget(rootDir);
+      if (!budget) {
+        budget = createBudget();
+      }
+      const amount = parseInt(options.add);
+      const justification = requestBudgetIncrease(budget, options.reason || "Manual increase", amount);
+      saveBudget(rootDir, budget);
+      console.log(chalk.green(`✅ Budget increased by ${amount.toLocaleString()} tokens`));
+      console.log(chalk.gray(`Reason: ${justification.reason}`));
+      return;
+    }
+
+    // Show budget (default)
+    const budget = loadBudget(rootDir);
+    if (!budget) {
+      console.log(chalk.yellow("No budget initialized. Use 'pnpm rag:budget init'"));
+      return;
+    }
+    console.log(formatBudgetReport(budget));
+  });
+
+// ============================================
+// READ OPTIMIZER - HYPOTHESIS-DRIVEN READING
+// ============================================
+
+program
+  .command("hypothesis [action]")
+  .description("Manage hypothesis-driven reading sessions")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("--task <text>", "Task description for new session")
+  .option("--desc <text>", "Hypothesis description")
+  .option("--files <files>", "Target files (comma-separated)")
+  .option("--symbols <symbols>", "Target symbols (comma-separated)")
+  .option("--priority <n>", "Hypothesis priority", "1")
+  .option("--id <id>", "Hypothesis ID for validation")
+  .option("--evidence <text>", "Evidence for validation")
+  .action((action, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    // Start new session
+    if (action === "start" || action === "new") {
+      if (!options.task) {
+        console.log(chalk.red("Required: --task"));
+        return;
+      }
+      const session = createHypothesisSession(options.task);
+      saveHypothesisSession(rootDir, session);
+      console.log(chalk.green(`✅ Hypothesis session started: ${session.sessionId}`));
+      console.log(chalk.gray(`Task: ${session.task}`));
+      return;
+    }
+
+    // Add hypothesis
+    if (action === "add") {
+      const session = loadHypothesisSession(rootDir);
+      if (!session) {
+        console.log(chalk.red("No active session. Use 'pnpm rag:hypothesis start --task \"...\"'"));
+        return;
+      }
+      if (!options.desc || !options.files) {
+        console.log(chalk.red("Required: --desc, --files"));
+        return;
+      }
+      const files = options.files.split(",").map((f: string) => f.trim());
+      const symbols = options.symbols ? options.symbols.split(",").map((s: string) => s.trim()) : [];
+      const h = addHypothesis(session, options.desc, files, symbols, parseInt(options.priority));
+      saveHypothesisSession(rootDir, session);
+      console.log(chalk.green(`✅ Hypothesis added: ${h.id}`));
+      console.log(chalk.gray(`Description: ${h.description}`));
+      console.log(chalk.gray(`Targets: ${h.targetFiles.join(", ")}`));
+      return;
+    }
+
+    // Validate hypothesis
+    if (action === "validate" || action === "reject") {
+      const session = loadHypothesisSession(rootDir);
+      if (!session) {
+        console.log(chalk.red("No active session."));
+        return;
+      }
+      if (!options.id) {
+        console.log(chalk.red("Required: --id"));
+        return;
+      }
+      validateHypothesis(session, options.id, action === "validate", options.evidence);
+      saveHypothesisSession(rootDir, session);
+      console.log(chalk.green(`✅ Hypothesis ${options.id} ${action === "validate" ? "validated" : "rejected"}`));
+      return;
+    }
+
+    // Check if read is allowed
+    if (action === "check" && options.files) {
+      const session = loadHypothesisSession(rootDir);
+      if (!session) {
+        console.log(chalk.green("No hypothesis session - all reads allowed"));
+        return;
+      }
+      const result = isReadAllowedByHypothesis(session, options.files);
+      if (result.allowed) {
+        console.log(chalk.green(`✅ Read allowed: ${result.reason}`));
+      } else {
+        console.log(chalk.red(`❌ Read blocked: ${result.reason}`));
+      }
+      return;
+    }
+
+    // Clear session
+    if (action === "clear") {
+      const filePath = path.join(rootDir, ".rag-hypothesis.json");
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(chalk.green("Hypothesis session cleared."));
+      }
+      return;
+    }
+
+    // Show status (default)
+    const session = loadHypothesisSession(rootDir);
+    if (!session) {
+      console.log(chalk.yellow("No active hypothesis session."));
+      return;
+    }
+    console.log(formatHypothesisReport(session));
+  });
+
+// ============================================
+// READ OPTIMIZER - CONTEXT STATE
+// ============================================
+
+program
+  .command("context-lock [action]")
+  .description("Manage context refusal mode")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("--reason <text>", "Reason for locking context")
+  .option("--file <path>", "File to check/override")
+  .action((action, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    // Lock context
+    if (action === "lock") {
+      let state = loadContextState(rootDir);
+      if (!state) {
+        state = createContextState();
+      }
+      declareSufficientContext(state, options.reason || "Context declared sufficient");
+      saveContextState(rootDir, state);
+      console.log(chalk.green("🔒 Context locked - further reads blocked"));
+      console.log(chalk.gray(`Reason: ${state.reason}`));
+      return;
+    }
+
+    // Unlock context
+    if (action === "unlock") {
+      const state = loadContextState(rootDir);
+      if (!state) {
+        console.log(chalk.yellow("No context state found."));
+        return;
+      }
+      unlockContext(state);
+      saveContextState(rootDir, state);
+      console.log(chalk.green("🔓 Context unlocked - reads allowed"));
+      return;
+    }
+
+    // Add override for specific file
+    if (action === "override" && options.file) {
+      let state = loadContextState(rootDir);
+      if (!state) {
+        state = createContextState();
+      }
+      addContextOverride(state, options.file, options.reason || "Manual override");
+      saveContextState(rootDir, state);
+      console.log(chalk.green(`✅ Override added for: ${options.file}`));
+      return;
+    }
+
+    // Check if read is allowed
+    if (action === "check" && options.file) {
+      const state = loadContextState(rootDir);
+      if (!state || !state.sufficientContext) {
+        console.log(chalk.green("✅ Context open - read allowed"));
+        return;
+      }
+      const result = attemptContextRead(state, options.file);
+      if (result.allowed) {
+        console.log(chalk.green(`✅ Read allowed: ${result.reason}`));
+      } else {
+        console.log(chalk.red(`❌ Read blocked: ${result.reason}`));
+      }
+      return;
+    }
+
+    // Show status (default)
+    const state = loadContextState(rootDir);
+    if (!state) {
+      console.log(chalk.green("🔓 No context lock active"));
+      return;
+    }
+    console.log(formatContextState(state));
+  });
+
+// ============================================
+// READ OPTIMIZER - RUNTIME PATH PRUNING
+// ============================================
+
+program
+  .command("prune-path")
+  .description("Analyze stack trace and prune irrelevant files")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("-s, --stack <trace>", "Stack trace to analyze")
+  .option("-f, --file <path>", "Read stack trace from file")
+  .action((options) => {
+    const rootDir = path.resolve(options.dir);
+
+    let stackTrace = options.stack;
+    if (options.file && fs.existsSync(options.file)) {
+      stackTrace = fs.readFileSync(options.file, "utf-8");
+    }
+
+    if (!stackTrace) {
+      console.log(chalk.red("Required: --stack or --file"));
+      console.log(chalk.gray("Example: pnpm rag:prune-path --stack \"Error: ...\\n    at foo (src/a.ts:10:5)\""));
+      return;
+    }
+
+    const store = loadStore(rootDir);
+    const allFiles = store ? store.chunks.map(c => c.filePath) : [];
+    const uniqueFiles = [...new Set(allFiles)];
+
+    const result = analyzeRuntimePath(stackTrace, uniqueFiles, rootDir);
+    console.log(formatRuntimePath(result));
+  });
+
+// ============================================
+// READ OPTIMIZER - API CONTRACTS
+// ============================================
+
+program
+  .command("contracts [action]")
+  .description("Manage API contract snapshots")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("-f, --file <path>", "File to snapshot/check")
+  .action((action, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    // Build/update snapshot
+    if (action === "snapshot" || action === "update") {
+      let snapshot = loadContractSnapshot(rootDir);
+      if (!snapshot) {
+        snapshot = createContractSnapshot();
+      }
+
+      if (options.file) {
+        const filePath = path.resolve(options.file);
+        if (!fs.existsSync(filePath)) {
+          console.log(chalk.red(`File not found: ${filePath}`));
+          return;
+        }
+        const { contract, diff } = updateContractSnapshot(snapshot, filePath);
+        saveContractSnapshot(rootDir, snapshot);
+        console.log(chalk.green(`✅ Contract captured: ${contract.signatures.length} signatures`));
+        console.log(formatContractDiff(diff, filePath));
+      } else {
+        // Snapshot all indexed files
+        const store = loadStore(rootDir);
+        if (!store) {
+          console.log(chalk.red("No index found."));
+          return;
+        }
+        const files = [...new Set(store.chunks.map(c => c.filePath))];
+        let count = 0;
+        for (const file of files) {
+          const fullPath = path.join(rootDir, file);
+          if (fs.existsSync(fullPath) && (file.endsWith(".ts") || file.endsWith(".tsx"))) {
+            updateContractSnapshot(snapshot, fullPath);
+            count++;
+          }
+        }
+        saveContractSnapshot(rootDir, snapshot);
+        console.log(chalk.green(`✅ Contracts captured for ${count} files`));
+      }
+      return;
+    }
+
+    // Check if contract changed
+    if (action === "check" && options.file) {
+      const snapshot = loadContractSnapshot(rootDir);
+      if (!snapshot) {
+        console.log(chalk.yellow("No contract snapshot. Use 'pnpm rag:contracts snapshot'"));
+        return;
+      }
+      const filePath = path.resolve(options.file);
+      const changed = hasContractChanged(snapshot, filePath);
+      if (changed) {
+        const { diff } = updateContractSnapshot(snapshot, filePath);
+        console.log(chalk.yellow(`⚠️ Contract changed for: ${options.file}`));
+        console.log(formatContractDiff(diff, filePath));
+      } else {
+        console.log(chalk.green(`✅ Contract unchanged: ${options.file}`));
+      }
+      return;
+    }
+
+    // Show stats (default)
+    const snapshot = loadContractSnapshot(rootDir);
+    if (!snapshot) {
+      console.log(chalk.yellow("No contract snapshot found."));
+      return;
+    }
+    const fileCount = Object.keys(snapshot.files).length;
+    const sigCount = Object.values(snapshot.files).reduce((acc, f) => acc + f.signatures.length, 0);
+    console.log(chalk.blue(`\n📜 API Contract Snapshot\n`));
+    console.log(`Files tracked: ${fileCount}`);
+    console.log(`Total signatures: ${sigCount}`);
+    console.log(`Created: ${new Date(snapshot.createdAt).toLocaleString()}`);
+  });
+
+// ============================================
+// READ OPTIMIZER - LOCALITY SCORE
+// ============================================
+
+program
+  .command("locality [file]")
+  .description("Calculate error locality scores for files")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("-k, --top-k <n>", "Show top K files", "10")
+  .option("--threshold <score>", "Minimum score threshold", "25")
+  .action((file, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    const store = loadStore(rootDir);
+    if (!store) {
+      console.log(chalk.red("No index found."));
+      return;
+    }
+
+    const graph = loadGraph(rootDir);
+    const errorDB = loadErrorDB(rootDir);
+    const changedFiles = getChangedFiles(rootDir);
+
+    // Score single file
+    if (file) {
+      const filePath = path.resolve(file);
+      const score = calculateLocalityScore(filePath, {
+        changedFiles,
+        graph: graph || undefined,
+        errorDB: errorDB || undefined,
+      });
+      console.log(chalk.blue(`\n🎯 Locality Score: ${path.basename(file)}\n`));
+      console.log(`Total score: ${score.score}/100`);
+      console.log(`  Recency: ${score.factors.recency}/25`);
+      console.log(`  Diff proximity: ${score.factors.diffProximity}/25`);
+      console.log(`  Error history: ${score.factors.errorHistory}/25`);
+      console.log(`  Centrality: ${score.factors.centrality}/25`);
+      return;
+    }
+
+    // Rank all files
+    const files = [...new Set(store.chunks.map(c => path.join(rootDir, c.filePath)))];
+    const scores = rankFilesByLocality(files, {
+      changedFiles,
+      graph: graph || undefined,
+      errorDB: errorDB || undefined,
+    });
+
+    console.log(formatLocalityReport(scores.slice(0, parseInt(options.topK))));
+  });
+
+// ============================================
+// READ OPTIMIZER - IMPORTANCE INDEX
+// ============================================
+
+program
+  .command("importance [action]")
+  .description("Manage file importance index")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("-k, --top-k <n>", "Number of top files", "30")
+  .option("-f, --file <path>", "Check specific file")
+  .action((action, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    // Build index
+    if (action === "build" || action === "rebuild") {
+      console.log(chalk.blue("\n⭐ Building importance index...\n"));
+      const index = buildImportanceIndex(rootDir, parseInt(options.topK));
+      saveImportanceIndex(rootDir, index);
+      console.log(chalk.green(`✅ Index built: ${index.files.length} files ranked`));
+      console.log(formatImportanceReport(index));
+      return;
+    }
+
+    // Check if file is in top-K
+    if (action === "check" && options.file) {
+      const index = loadImportanceIndex(rootDir);
+      if (!index) {
+        console.log(chalk.yellow("No importance index. Use 'pnpm rag:importance build'"));
+        return;
+      }
+      const inTop = isInTopK(index, options.file, parseInt(options.topK));
+      if (inTop) {
+        console.log(chalk.green(`✅ ${options.file} is in top-${options.topK}`));
+      } else {
+        console.log(chalk.yellow(`⚠️ ${options.file} is NOT in top-${options.topK}`));
+      }
+      return;
+    }
+
+    // Show index (default)
+    let index = loadImportanceIndex(rootDir);
+    if (!index) {
+      console.log(chalk.yellow("No importance index found. Building..."));
+      index = buildImportanceIndex(rootDir, parseInt(options.topK));
+      saveImportanceIndex(rootDir, index);
+    }
+    console.log(formatImportanceReport(index));
+  });
+
+// ============================================
+// READ OPTIMIZER - RISK ASSESSMENT
+// ============================================
+
+program
+  .command("risk [file]")
+  .description("Assess security/performance risk of files")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("--diff", "Assess risk of changed files in diff")
+  .option("--min-level <level>", "Minimum risk level to show (minimal, low, medium, high, critical)", "low")
+  .action((file, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    // Assess diff
+    if (options.diff) {
+      const assessments = assessDiffRisk(rootDir);
+      if (assessments.length === 0) {
+        console.log(chalk.yellow("No changed files to assess."));
+        return;
+      }
+      console.log(formatRiskReport(assessments));
+      return;
+    }
+
+    // Assess single file
+    if (file) {
+      const filePath = path.resolve(file);
+      if (!fs.existsSync(filePath)) {
+        console.log(chalk.red(`File not found: ${file}`));
+        return;
+      }
+      const assessment = assessFileRisk(filePath);
+      console.log(chalk.blue(`\n🛡️ Risk Assessment: ${path.basename(file)}\n`));
+      console.log(`Risk Level: ${assessment.riskLevel.toUpperCase()}`);
+      console.log(`Risk Score: ${assessment.riskScore}/100`);
+      console.log(`\nFactors:`);
+      console.log(`  Security: ${assessment.factors.security}/25`);
+      console.log(`  Performance: ${assessment.factors.performance}/25`);
+      console.log(`  Complexity: ${assessment.factors.complexity}/25`);
+      console.log(`  External: ${assessment.factors.external}/25`);
+      console.log(`  Data handling: ${assessment.factors.dataHandling}/25`);
+
+      if (assessment.matches.length > 0) {
+        console.log(`\nMatches (${assessment.matches.length}):`);
+        for (const m of assessment.matches.slice(0, 10)) {
+          console.log(`  L${m.line} [${m.category}]: ${m.context.slice(0, 50)}...`);
+        }
+      }
+      return;
+    }
+
+    // Assess all indexed files
+    const store = loadStore(rootDir);
+    if (!store) {
+      console.log(chalk.red("No index found."));
+      return;
+    }
+    const files = [...new Set(store.chunks.map(c => path.join(rootDir, c.filePath)))];
+    const assessments = files
+      .filter(f => fs.existsSync(f))
+      .map(f => assessFileRisk(f));
+
+    console.log(formatRiskReport(assessments));
+  });
+
+// ============================================
+// READ OPTIMIZER - UNIFIED STATUS
+// ============================================
+
+program
+  .command("optimizer")
+  .description("Show read optimizer status and check read permissions")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("-f, --file <path>", "Check if read is allowed for file")
+  .action((options) => {
+    const rootDir = path.resolve(options.dir);
+
+    // Check specific file
+    if (options.file) {
+      const filePath = path.resolve(options.file);
+      const decision = shouldAllowRead(filePath, rootDir);
+
+      console.log(chalk.blue(`\n🔧 Read Decision: ${path.basename(options.file)}\n`));
+      if (decision.allowed) {
+        console.log(chalk.green(`✅ Read allowed (score: ${decision.score}/100)`));
+      } else {
+        console.log(chalk.red(`❌ Read blocked: ${decision.reason}`));
+      }
+
+      if (decision.budgetImpact) {
+        console.log(chalk.gray(`Budget impact: ~${decision.budgetImpact} tokens`));
+      }
+
+      if (decision.suggestions && decision.suggestions.length > 0) {
+        console.log(chalk.yellow(`\n💡 Suggestions:`));
+        for (const s of decision.suggestions) {
+          console.log(`   • ${s}`);
+        }
+      }
+      return;
+    }
+
+    // Show overall status
+    console.log(formatOptimizerStatus(rootDir));
   });
 
 program.parse();

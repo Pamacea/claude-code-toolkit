@@ -15,14 +15,9 @@ const HOOKS_DIR = join(CLAUDE_DIR, "hooks");
 
 // Files that should be added to .gitignore
 const GENERATED_FILES = [
-  ".rag-index.json",
-  ".rag-cache.json",
-  ".rag-deps.json",
-  ".rag-hashes.json",
+  ".rag/",
+  ".rag-*.json",  // Legacy files
   ".claude-memory.json",
-  ".rag-session.json",
-  ".rag-errors.json",
-  ".rag-snippets.json",
 ];
 
 function ensureDir(dir) {
@@ -280,7 +275,8 @@ import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const SESSION_FILE = join(PROJECT_DIR, ".rag-session.json");
+const RAG_DIR = join(PROJECT_DIR, ".rag");
+const SESSION_FILE = join(RAG_DIR, "session.json");
 
 function safeExec(cmd) {
   try { return execSync(cmd, { encoding: "utf-8", cwd: PROJECT_DIR, timeout: 10000 }).trim(); }
@@ -321,7 +317,7 @@ import { readFileSync, existsSync } from "fs";
 import { join, basename } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const DEPS_FILE = join(PROJECT_DIR, ".rag-deps.json");
+const DEPS_FILE = join(PROJECT_DIR, ".rag", "deps.json");
 
 let input;
 try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
@@ -364,7 +360,7 @@ import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const ERRORS_DB = join(PROJECT_DIR, ".rag-errors.json");
+const ERRORS_DB = join(PROJECT_DIR, ".rag", "errors.json");
 
 let input;
 try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
@@ -512,7 +508,7 @@ function updateSettings() {
 // ============================================================
 
 function install() {
-  console.log("\n🚀 Installing Claude Toolkit v4.3\n");
+  console.log("\n🚀 Installing Claude Toolkit v5.0\n");
   console.log(`Platform: ${platform()}`);
   console.log(`Project: ${PROJECT_ROOT}\n`);
 
@@ -540,17 +536,20 @@ function install() {
 
   console.log("\n✨ Installation complete!\n");
   console.log("Commands: /rag, /diff, /memory, /session, /errors, /snippets");
-  console.log("\nv4.3 Features:");
-  console.log("  - Lazy loading: --lazy + rag:expand (max token savings)");
-  console.log("  - Auto-truncate: large files auto-summarized");
-  console.log("  - Session continuity (auto-load + auto-save)");
-  console.log("  - Error pattern DB + auto-fix suggestions");
-  console.log("  - Smart file watcher (related files on Edit)");
+  console.log("\nv5.0 Features:");
+  console.log("  - New .rag/ directory for all generated files");
+  console.log("  - Budget Manager: pnpm rag:budget");
+  console.log("  - Hypothesis-Driven: pnpm rag:hypothesis");
+  console.log("  - Context Lock: pnpm rag:context-lock");
+  console.log("  - API Contracts: pnpm rag:contracts");
+  console.log("  - Importance Index: pnpm rag:importance");
+  console.log("  - Risk Assessment: pnpm rag:risk");
+  console.log("  - Unified Optimizer: pnpm rag:optimizer");
   console.log("\nHooks installed:");
-  console.log("  - SessionStart: Load session context");
-  console.log("  - Stop: Save session state");
-  console.log("  - PostToolUse: Auto-fix + Auto-truncate");
-  console.log("  - PreToolUse: RAG suggestion + Smart files");
+  console.log("  - SessionStart: Load context + init optimizer");
+  console.log("  - Stop: Save session + budget stats");
+  console.log("  - PostToolUse: Auto-fix + Auto-truncate + Budget tracking");
+  console.log("  - PreToolUse: RAG suggestion + Smart files + Read guard");
   console.log("\nRun: pnpm rag:index && pnpm rag:install\n");
 }
 

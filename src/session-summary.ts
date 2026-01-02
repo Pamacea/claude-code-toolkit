@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
 import { getCurrentBranch, getChangedFiles, getDiffStats } from "./diff-context.js";
+import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface SessionAction {
   timestamp: number;
@@ -38,14 +39,13 @@ export interface SessionStats {
   commitsCreated: number;
 }
 
-const SESSION_FILE = ".rag-session.json";
 const SESSION_VERSION = "1.0.0";
 
 /**
  * Get session file path
  */
 export function getSessionPath(rootDir: string): string {
-  return path.join(rootDir, SESSION_FILE);
+  return getRagPath(rootDir, "SESSION");
 }
 
 /**
@@ -83,6 +83,7 @@ export function loadSession(rootDir: string): SessionSummary | null {
  * Save session to disk
  */
 export function saveSession(rootDir: string, session: SessionSummary): void {
+  ensureRagDir(rootDir);
   const sessionPath = getSessionPath(rootDir);
   session.lastUpdated = Date.now();
   fs.writeFileSync(sessionPath, JSON.stringify(session, null, 2));

@@ -12,6 +12,7 @@ import { loadStore, saveStore, type VectorStore, type IndexedChunk } from "./sto
 import { scanDirectory, type ScannedFile } from "./scanner.js";
 import { chunkFile } from "./chunker.js";
 import { initEmbedder, embed } from "./embedder.js";
+import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface FileHash {
   filePath: string;
@@ -36,7 +37,6 @@ export interface WatcherStats {
   timeMs: number;
 }
 
-const HASH_FILE = ".rag-hashes.json";
 const HASH_VERSION = "1.0.0";
 
 /**
@@ -50,7 +50,7 @@ function computeHash(content: string): string {
  * Load hash index
  */
 export function loadHashIndex(rootDir: string): HashIndex {
-  const hashPath = path.join(rootDir, HASH_FILE);
+  const hashPath = getRagPath(rootDir, "HASHES");
 
   if (!fs.existsSync(hashPath)) {
     return createEmptyHashIndex();
@@ -74,7 +74,8 @@ export function loadHashIndex(rootDir: string): HashIndex {
  * Save hash index
  */
 export function saveHashIndex(rootDir: string, index: HashIndex): void {
-  const hashPath = path.join(rootDir, HASH_FILE);
+  ensureRagDir(rootDir);
+  const hashPath = getRagPath(rootDir, "HASHES");
   fs.writeFileSync(hashPath, JSON.stringify(index, null, 2));
 }
 
