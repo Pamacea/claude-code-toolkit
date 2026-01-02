@@ -1706,7 +1706,7 @@ program
 
     // Score single file
     if (file) {
-      const filePath = path.resolve(file);
+      const filePath = path.resolve(rootDir, file);
       const score = calculateLocalityScore(filePath, {
         changedFiles,
         graph: graph || undefined,
@@ -1807,7 +1807,7 @@ program
 
     // Assess single file
     if (file) {
-      const filePath = path.resolve(file);
+      const filePath = path.resolve(rootDir, file);
       if (!fs.existsSync(filePath)) {
         console.log(chalk.red(`File not found: ${file}`));
         return;
