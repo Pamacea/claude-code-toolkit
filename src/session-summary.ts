@@ -1,7 +1,6 @@
 import * as fs from "fs";
-import * as path from "path";
 import { execSync } from "child_process";
-import { getCurrentBranch, getChangedFiles, getDiffStats } from "./diff-context.js";
+import { getCurrentBranch, getChangedFiles } from "./diff-context.js";
 import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface SessionAction {

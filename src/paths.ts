@@ -6,8 +6,10 @@
 import * as path from "path";
 import * as fs from "fs";
 
-// RAG directory name
-export const RAG_DIR = ".rag";
+// Claude directory and RAG subdirectory
+export const CLAUDE_DIR = ".claude";
+export const RAG_DIR_NAME = ".rag";
+export const RAG_DIR = `${CLAUDE_DIR}/${RAG_DIR_NAME}`;
 
 // File names (without directory)
 export const FILES = {
@@ -25,6 +27,8 @@ export const FILES = {
   ERRORS: "errors.json",
   SNIPPETS: "snippets.json",
   MEMORY: "memory.json",
+  CHECKPOINT: "checkpoint.json",
+  BURN_RATE: "burn-rate.json",
 } as const;
 
 /**
@@ -70,6 +74,8 @@ export const LEGACY_FILES: Record<keyof typeof FILES, string> = {
   ERRORS: ".rag-errors.json",
   SNIPPETS: ".rag-snippets.json",
   MEMORY: ".claude-memory.json",
+  CHECKPOINT: ".rag-checkpoint.json",
+  BURN_RATE: ".rag-burn-rate.json",
 };
 
 /**

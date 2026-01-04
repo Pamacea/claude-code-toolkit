@@ -43,7 +43,7 @@ for (let i = 0; i < 10; i++) {
 }
 
 // Load or create budget
-const ragDir = `${rootDir}/.rag`;
+const ragDir = `${rootDir}/.claude/.rag`;
 const budgetFile = `${ragDir}/budget.json`;
 let budget;
 

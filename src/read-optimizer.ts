@@ -271,9 +271,9 @@ export function formatBudgetReport(budget: ReadBudget): string {
 
 function createProgressBar(percent: number): string {
   const width = 20;
-  const filled = Math.round((percent / 100) * width);
-  const empty = width - filled;
-  const color = percent >= 90 ? "🔴" : percent >= 70 ? "🟡" : "🟢";
+  const filled = Math.min(width, Math.max(0, Math.round((percent / 100) * width)));
+  const empty = Math.max(0, width - filled);
+  const color = percent >= 100 ? "🔴" : percent >= 90 ? "🟡" : percent >= 70 ? "🟠" : "🟢";
   return `${color} [${"█".repeat(filled)}${"░".repeat(empty)}]`;
 }
 

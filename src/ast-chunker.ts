@@ -1,5 +1,16 @@
-import { Project, Node, SyntaxKind, SourceFile } from "ts-morph";
-import * as path from "path";
+import {
+  Project,
+  Node,
+  SourceFile,
+  FunctionDeclaration,
+  ClassDeclaration,
+  InterfaceDeclaration,
+  VariableDeclaration,
+  ParameterDeclaration,
+  MethodDeclaration,
+  ArrowFunction,
+  ExpressionWithTypeArguments,
+} from "ts-morph";
 
 export interface ASTChunk {
   id: string;
@@ -214,16 +225,17 @@ function extractNodes(sourceFile: SourceFile): ExtractedNode[] {
 }
 
 function extractFunction(func: Node): ExtractedNode {
-  const name = (func as any).getName?.() ?? "anonymous";
-  const isExported = (func as any).isExported?.() ?? false;
+  const funcDecl = func as FunctionDeclaration;
+  const name = funcDecl.getName?.() ?? "anonymous";
+  const isExported = funcDecl.isExported?.() ?? false;
 
   // Build signature
   let signature = "";
-  if ((func as any).isAsync?.()) signature += "async ";
+  if (funcDecl.isAsync?.()) signature += "async ";
   signature += `function ${name}(`;
 
-  const params = (func as any).getParameters?.() ?? [];
-  signature += params.map((p: any) => {
+  const params = funcDecl.getParameters?.() ?? [];
+  signature += params.map((p: ParameterDeclaration) => {
     const paramName = p.getName();
     const paramType = p.getType().getText();
     return `${paramName}: ${paramType}`;
@@ -231,7 +243,7 @@ function extractFunction(func: Node): ExtractedNode {
 
   signature += ")";
 
-  const returnType = (func as any).getReturnType?.()?.getText();
+  const returnType = funcDecl.getReturnType?.()?.getText();
   if (returnType && returnType !== "void") {
     signature += `: ${returnType}`;
   }
@@ -249,14 +261,15 @@ function extractFunction(func: Node): ExtractedNode {
 }
 
 function extractClass(cls: Node): ExtractedNode {
-  const name = (cls as any).getName?.() ?? "AnonymousClass";
-  const isExported = (cls as any).isExported?.() ?? false;
+  const classDecl = cls as ClassDeclaration;
+  const name = classDecl.getName?.() ?? "AnonymousClass";
+  const isExported = classDecl.isExported?.() ?? false;
 
   // Build signature with methods
   let signature = `class ${name}`;
-  const methods = (cls as any).getMethods?.() ?? [];
+  const methods = classDecl.getMethods?.() ?? [];
   if (methods.length > 0) {
-    signature += ` { ${methods.map((m: any) => m.getName()).join(", ")} }`;
+    signature += ` { ${methods.map((m: MethodDeclaration) => m.getName()).join(", ")} }`;
   }
 
   return {
@@ -271,16 +284,17 @@ function extractClass(cls: Node): ExtractedNode {
   };
 }
 
-function extractArrowSignature(varDecl: any): string {
+function extractArrowSignature(varDecl: VariableDeclaration): string {
   const name = varDecl.getName();
   const initializer = varDecl.getInitializer();
 
   if (!initializer) return `const ${name}`;
 
-  const params = initializer.getParameters?.() ?? [];
-  const paramStr = params.map((p: any) => {
+  const arrowFunc = initializer as ArrowFunction;
+  const params = arrowFunc.getParameters?.() ?? [];
+  const paramStr = params.map((p: ParameterDeclaration) => {
     const paramName = p.getName();
-    const paramType = p.getType()?.getText() ?? "any";
+    const paramType = p.getType()?.getText() ?? "unknown";
     return `${paramName}: ${paramType}`;
   }).join(", ");
 
@@ -317,11 +331,11 @@ function extractDependencies(node: Node): string[] {
   return Array.from(deps).filter(d => !builtins.has(d));
 }
 
-function extractInterfaceDependencies(iface: any): string[] {
+function extractInterfaceDependencies(iface: InterfaceDeclaration): string[] {
   const deps = new Set<string>();
 
   // Get extended interfaces
-  const extendedTypes = iface.getExtends?.() ?? [];
+  const extendedTypes: ExpressionWithTypeArguments[] = iface.getExtends?.() ?? [];
   for (const ext of extendedTypes) {
     deps.add(ext.getText().split("<")[0]); // Remove generics
   }

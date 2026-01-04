@@ -3,6 +3,22 @@ import * as path from "path";
 import { execSync } from "child_process";
 import { getRagPath, ensureRagDir } from "./paths.js";
 
+interface PackageJson {
+  name?: string;
+  version?: string;
+  description?: string;
+  type?: string;
+  main?: string;
+  workspaces?: string[] | { packages: string[] };
+  scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  engines?: Record<string, string>;
+  packageManager?: string;
+  prettier?: Record<string, unknown>;
+}
+
 export interface ProjectMemory {
   version: string;
   generatedAt: string;
@@ -255,7 +271,7 @@ function detectConventions(rootDir: string): CodingConventions {
       if (config.semi === false) semicolons = false;
       if (config.useTabs) indentation = "tabs";
       if (config.tabWidth) indentSize = config.tabWidth;
-    } catch {}
+    } catch { /* ignore parse errors */ }
   }
 
   // Check package.json for type (pkg already loaded above)
@@ -310,7 +326,7 @@ function detectConstraints(rootDir: string): string[] {
     const lines = claudeMd.split("\n");
     for (const line of lines) {
       if (line.toLowerCase().includes("never") || line.toLowerCase().includes("always")) {
-        const trimmed = line.replace(/^[\s\-\*#]+/, "").trim();
+        const trimmed = line.replace(/^[\s\-*#]+/, "").trim();
         if (trimmed.length > 10 && trimmed.length < 100) {
           constraints.push(trimmed);
         }
@@ -370,7 +386,7 @@ function getRecentActivity(rootDir: string): RecentActivity {
 /**
  * Detect main technologies used
  */
-function detectTechnologies(rootDir: string, pkg: any): string[] {
+function detectTechnologies(_rootDir: string, pkg: PackageJson | null): string[] {
   const technologies: string[] = [];
   const allDeps = {
     ...(pkg?.dependencies || {}),
@@ -498,7 +514,7 @@ export function needsRefresh(rootDir: string, memory: ProjectMemory): boolean {
 
 // Helper functions
 
-function readPackageJson(dir: string): any {
+function readPackageJson(dir: string): PackageJson | null {
   const pkgPath = path.join(dir, "package.json");
   if (!fs.existsSync(pkgPath)) return null;
 

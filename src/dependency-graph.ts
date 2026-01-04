@@ -12,7 +12,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { loadStore, type IndexedChunk, type VectorStore } from "./store.js";
+import { type IndexedChunk, type VectorStore } from "./store.js";
 import { getRagPath, ensureRagDir } from "./paths.js";
 
 export interface DependencyNode {

@@ -8,7 +8,7 @@ import { execSync } from "child_process";
 import { join, dirname, basename } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const DEPS_FILE = join(PROJECT_DIR, ".rag-deps.json");
+const DEPS_FILE = join(PROJECT_DIR, ".claude/.rag/deps.json");
 
 let inputData;
 try {

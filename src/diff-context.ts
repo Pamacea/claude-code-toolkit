@@ -1,6 +1,4 @@
 import { execSync } from "child_process";
-import * as path from "path";
-import * as fs from "fs";
 
 export interface DiffHunk {
   filePath: string;
@@ -58,8 +56,9 @@ export function getGitDiff(
       encoding: "utf-8",
       maxBuffer: 10 * 1024 * 1024, // 10MB
     });
-  } catch (error: any) {
-    if (error.stdout) return error.stdout;
+  } catch (error: unknown) {
+    const execError = error as { stdout?: string };
+    if (execError.stdout) return execError.stdout;
     return "";
   }
 }
@@ -69,8 +68,6 @@ export function getGitDiff(
  */
 export function parseDiff(diffOutput: string): DiffFile[] {
   const files: DiffFile[] = [];
-  const fileRegex = /^diff --git a\/(.+) b\/(.+)$/gm;
-  const hunkRegex = /^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@(.*)$/gm;
 
   // Split by file
   const fileSections = diffOutput.split(/^diff --git /m).filter(Boolean);

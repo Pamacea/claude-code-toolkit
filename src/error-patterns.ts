@@ -1,5 +1,4 @@
 import * as fs from "fs";
-import * as path from "path";
 import * as crypto from "crypto";
 import { getRagPath, ensureRagDir } from "./paths.js";
 
@@ -440,4 +439,92 @@ export function getDBStats(db: ErrorPatternDB): {
     avgUseCount,
     topTags,
   };
+}
+
+/**
+ * Quick add an error pattern with minimal info
+ * Used for automatic learning from bash failures
+ */
+export function quickAddError(
+  db: ErrorPatternDB,
+  errorMessage: string,
+  solution: string,
+  options?: {
+    errorType?: string;
+    command?: string;
+    file?: string;
+    tags?: string[];
+  }
+): ErrorPattern | null {
+  if (!errorMessage || !solution) return null;
+
+  const errorType = options?.errorType || detectErrorType(errorMessage);
+  const tags = options?.tags || detectTags(errorMessage);
+
+  return addErrorPattern(
+    db,
+    errorType,
+    errorMessage,
+    {
+      description: solution,
+      steps: [],
+      commands: options?.command ? [options.command] : [],
+      preventionTips: [],
+    },
+    {
+      command: options?.command,
+      file: options?.file,
+    },
+    tags,
+    "medium"
+  );
+}
+
+/**
+ * Detect error type from message
+ */
+function detectErrorType(message: string): string {
+  const patterns: Array<{ regex: RegExp; type: string }> = [
+    { regex: /TypeError/i, type: "TypeError" },
+    { regex: /SyntaxError/i, type: "SyntaxError" },
+    { regex: /ReferenceError/i, type: "ReferenceError" },
+    { regex: /ENOENT/i, type: "FileNotFound" },
+    { regex: /EACCES/i, type: "PermissionError" },
+    { regex: /Module not found/i, type: "ModuleNotFound" },
+    { regex: /Cannot find module/i, type: "ModuleNotFound" },
+    { regex: /Cannot resolve/i, type: "ResolutionError" },
+    { regex: /build failed/i, type: "BuildError" },
+    { regex: /compilation failed/i, type: "BuildError" },
+    { regex: /test failed/i, type: "TestError" },
+    { regex: /assertion/i, type: "AssertionError" },
+    { regex: /timeout/i, type: "TimeoutError" },
+    { regex: /connection refused/i, type: "ConnectionError" },
+  ];
+
+  for (const { regex, type } of patterns) {
+    if (regex.test(message)) {
+      return type;
+    }
+  }
+
+  return "Error";
+}
+
+/**
+ * Detect tags from error message
+ */
+function detectTags(message: string): string[] {
+  const tags: string[] = [];
+  const lowerMsg = message.toLowerCase();
+
+  if (lowerMsg.includes("typescript") || lowerMsg.includes(".ts")) tags.push("typescript");
+  if (lowerMsg.includes("react") || lowerMsg.includes("jsx") || lowerMsg.includes("tsx")) tags.push("react");
+  if (lowerMsg.includes("node") || lowerMsg.includes("npm") || lowerMsg.includes("pnpm")) tags.push("node");
+  if (lowerMsg.includes("import") || lowerMsg.includes("export") || lowerMsg.includes("module")) tags.push("modules");
+  if (lowerMsg.includes("test") || lowerMsg.includes("jest") || lowerMsg.includes("vitest")) tags.push("testing");
+  if (lowerMsg.includes("build") || lowerMsg.includes("compile") || lowerMsg.includes("tsc")) tags.push("build");
+  if (lowerMsg.includes("lint") || lowerMsg.includes("eslint")) tags.push("linting");
+  if (lowerMsg.includes("type") && !lowerMsg.includes("typeerror")) tags.push("types");
+
+  return tags;
 }

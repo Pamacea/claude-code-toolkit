@@ -1,4 +1,4 @@
-import { chunkTypeScriptAST, type ASTChunk } from "./ast-chunker.js";
+import { chunkTypeScriptAST } from "./ast-chunker.js";
 
 export interface Chunk {
   id: string;
@@ -104,11 +104,6 @@ function chunkTypeScript(filePath: string, content: string, lines: string[]): Ch
 
 function chunkMarkdown(filePath: string, content: string, lines: string[]): Chunk[] {
   const chunks: Chunk[] = [];
-  const fileName = filePath.split(/[/\\]/).pop() || filePath;
-
-  // Special handling for key project files
-  const isProgressFile = fileName === "PROGRESS.md";
-  const isNextSteps = fileName === "NEXT_STEPS.md";
 
   // Find all headers and their content
   const sections: Array<{ title: string; level: number; startLine: number; content: string[] }> = [];

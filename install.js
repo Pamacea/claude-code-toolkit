@@ -5,7 +5,9 @@ import { fileURLToPath } from "url";
 import { homedir, platform } from "os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = join(__dirname, "..");
+const TOOLKIT_ROOT = __dirname;
+const CLAUDE_LOCAL_DIR = join(__dirname, "..");
+const PROJECT_ROOT = join(CLAUDE_LOCAL_DIR, "..");
 const IS_WINDOWS = platform() === "win32";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
@@ -15,6 +17,7 @@ const HOOKS_DIR = join(CLAUDE_DIR, "hooks");
 
 // Files that should be added to .gitignore
 const GENERATED_FILES = [
+  ".claude/.rag/",
   ".rag-index.json",
   ".rag-cache.json",
   ".rag-deps.json",
@@ -82,7 +85,7 @@ Search the indexed codebase using semantic search.
 \`/rag <query>\`
 
 ## Instructions
-Run: \`node .claude-code-toolkit/dist/search.js context "$ARGUMENTS" -d . -k 8\`
+Run: \`node .claude/toolkit/dist/search.js context "$ARGUMENTS" -d . -k 8\`
 
 ## Options
 - \`-k <number>\` - Number of results (default: 8)
@@ -98,7 +101,7 @@ Get structured context from git diff.
 \`/diff [options]\`
 
 ## Instructions
-Run: \`node .claude-code-toolkit/dist/search.js diff -d . $ARGUMENTS\`
+Run: \`node .claude/toolkit/dist/search.js diff -d . $ARGUMENTS\`
 
 ## Options
 - \`--staged\` - Only staged changes
@@ -114,7 +117,7 @@ Get auto-generated project summary.
 \`/memory\`
 
 ## Instructions
-Run: \`node .claude-code-toolkit/dist/search.js memory -d .\`
+Run: \`node .claude/toolkit/dist/search.js memory -d .\`
 
 ## Options
 - \`--generate\` - Force regeneration
@@ -129,7 +132,7 @@ Get session summary for context continuity. Auto-saved on session end.
 \`/session [options]\`
 
 ## Instructions
-Run: \`node .claude-code-toolkit/dist/search.js session -d . $ARGUMENTS\`
+Run: \`node .claude/toolkit/dist/search.js session -d . $ARGUMENTS\`
 
 ## Options
 - \`--compact\` - Short summary
@@ -149,8 +152,8 @@ Search and manage error patterns database.
 \`/errors [action] [options]\`
 
 ## Instructions
-Search: \`node .claude-code-toolkit/dist/search.js errors find -m "error message" -d .\`
-Add: \`node .claude-code-toolkit/dist/search.js errors add -t "Type" -m "msg" -s "solution" -d .\`
+Search: \`node .claude/toolkit/dist/search.js errors find -m "error message" -d .\`
+Add: \`node .claude/toolkit/dist/search.js errors add -t "Type" -m "msg" -s "solution" -d .\`
 
 ## Options
 - \`find -m "msg"\` - Find matching pattern
@@ -167,8 +170,8 @@ Search and manage code snippets cache.
 \`/snippets [action] [options]\`
 
 ## Instructions
-Search: \`node .claude-code-toolkit/dist/search.js snippets --search "query" -d .\`
-Add: \`node .claude-code-toolkit/dist/search.js snippets add -n "name" --code "code" -d .\`
+Search: \`node .claude/toolkit/dist/search.js snippets --search "query" -d .\`
+Add: \`node .claude/toolkit/dist/search.js snippets add -n "name" --code "code" -d .\`
 
 ## Options
 - \`--search "query"\` - Search snippets
@@ -188,7 +191,7 @@ import { existsSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT = ".claude-code-toolkit/dist/search.js";
+const TOOLKIT = ".claude/toolkit/dist/search.js";
 
 function safeExec(cmd) {
   try {
@@ -248,7 +251,7 @@ import { execSync } from "child_process";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT = join(PROJECT_DIR, ".claude-code-toolkit/dist/search.js");
+const TOOLKIT = join(PROJECT_DIR, ".claude/toolkit/dist/search.js");
 
 let input;
 try { input = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
@@ -412,6 +415,127 @@ try {
 `;
 }
 
+function getErrorLearnerHook() {
+  return `#!/usr/bin/env node
+import { readFileSync, writeFileSync, existsSync } from "fs";
+import { join } from "path";
+import crypto from "crypto";
+
+const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+const CLAUDE_DIR = join(PROJECT_DIR, ".claude");
+const RAG_DIR = join(CLAUDE_DIR, ".rag");
+const PENDING_FILE = join(RAG_DIR, "pending-errors.json");
+const ERRORS_DB = join(RAG_DIR, "errors.json");
+
+let inputData;
+try { inputData = JSON.parse(readFileSync(0, "utf-8")); } catch { process.exit(0); }
+
+const toolName = inputData.tool_name || "";
+const toolInput = inputData.tool_input || {};
+const toolResult = inputData.tool_result || {};
+
+function loadPending() {
+  if (!existsSync(PENDING_FILE)) return { errors: [], edits: [] };
+  try { return JSON.parse(readFileSync(PENDING_FILE, "utf-8")); } catch { return { errors: [], edits: [] }; }
+}
+function savePending(data) { try { writeFileSync(PENDING_FILE, JSON.stringify(data, null, 2)); } catch {} }
+
+function extractErrorMessage(output) {
+  const lines = output.split("\\n").filter(l => l.trim());
+  return (lines.find(l => /error|failed|cannot|not found/i.test(l)) || lines[0] || "").slice(0, 300);
+}
+
+function isSimilarCommand(cmd1, cmd2) { return cmd1.split(/\\s+/)[0] === cmd2.split(/\\s+/)[0]; }
+
+function normalizeError(msg) {
+  return msg.toLowerCase().replace(/\\d+/g, "N").replace(/['"\\\`]/g, "").replace(/\\s+/g, " ")
+    .replace(/\\/[\\w\\-./]+\\.(ts|js|tsx|jsx)/g, "/FILE").trim();
+}
+
+function loadErrorDB() {
+  if (!existsSync(ERRORS_DB)) return { version: "1.0.0", patterns: [], stats: { totalPatterns: 0, totalLookups: 0, successfulMatches: 0, lastUpdated: Date.now() } };
+  try { return JSON.parse(readFileSync(ERRORS_DB, "utf-8")); } catch { return { version: "1.0.0", patterns: [], stats: { totalPatterns: 0, totalLookups: 0, successfulMatches: 0, lastUpdated: Date.now() } }; }
+}
+
+function detectErrorType(message) {
+  const patterns = [{ regex: /TypeError/i, type: "TypeError" }, { regex: /SyntaxError/i, type: "SyntaxError" }, { regex: /Module not found/i, type: "ModuleNotFound" }, { regex: /build failed/i, type: "BuildError" }];
+  for (const { regex, type } of patterns) if (regex.test(message)) return type;
+  return "Error";
+}
+
+function detectTags(message) {
+  const tags = [], lm = message.toLowerCase();
+  if (lm.includes("typescript") || lm.includes(".ts")) tags.push("typescript");
+  if (lm.includes("react") || lm.includes("jsx")) tags.push("react");
+  if (lm.includes("node") || lm.includes("npm") || lm.includes("pnpm")) tags.push("node");
+  if (lm.includes("build") || lm.includes("tsc")) tags.push("build");
+  return tags;
+}
+
+function generateErrorId(norm, type) { return "err_" + crypto.createHash("sha256").update(type + ":" + norm).digest("hex").slice(0, 12); }
+
+function addErrorToDB(errorMessage, solution, codeChanges) {
+  const db = loadErrorDB();
+  const errorType = detectErrorType(errorMessage);
+  const normalizedMessage = normalizeError(errorMessage);
+  const id = generateErrorId(normalizedMessage, errorType);
+  if (db.patterns.find(p => p.id === id)) return null;
+  const pattern = { id, errorType, errorMessage: errorMessage.slice(0, 500), normalizedMessage, context: {}, solution: { description: solution, steps: [], codeChanges: codeChanges || [], commands: [], preventionTips: [] }, metadata: { createdAt: Date.now(), lastUsed: Date.now(), useCount: 1, tags: detectTags(errorMessage), severity: "medium" } };
+  db.patterns.push(pattern); db.stats.totalPatterns++; db.stats.lastUpdated = Date.now();
+  writeFileSync(ERRORS_DB, JSON.stringify(db, null, 2));
+  return pattern;
+}
+
+const pending = loadPending();
+const errorPatterns = [/error:/i, /Error:/i, /failed/i, /Cannot find/i, /not found/i, /TypeError/, /SyntaxError/, /ENOENT/];
+
+if (toolName === "Bash") {
+  const command = toolInput.command || "";
+  const output = toolResult.stdout || toolResult.stderr || "";
+  const exitCode = toolResult.exit_code;
+  const isError = exitCode !== 0 || errorPatterns.some(p => p.test(output));
+  if (isError) {
+    const errorMsg = extractErrorMessage(output);
+    pending.errors.push({ command, errorMessage: errorMsg, normalizedError: normalizeError(errorMsg), timestamp: Date.now() });
+    pending.errors = pending.errors.slice(-5);
+    savePending(pending);
+  } else {
+    for (let i = pending.errors.length - 1; i >= 0; i--) {
+      const pe = pending.errors[i];
+      if (isSimilarCommand(pe.command, command)) {
+        const recentEdits = pending.edits.filter(e => e.timestamp > pe.timestamp);
+        if (recentEdits.length > 0) {
+          const codeChanges = recentEdits.map(e => ({ file: e.file, before: e.oldString.slice(0, 200), after: e.newString.slice(0, 200) }));
+          const filesChanged = [...new Set(recentEdits.map(e => e.file))];
+          const solution = "Fixed by editing " + filesChanged.length + " file(s): " + filesChanged.map(f => f.split("/").pop()).join(", ");
+          const added = addErrorToDB(pe.errorMessage, solution, codeChanges);
+          pending.errors.splice(i, 1); pending.edits = []; savePending(pending);
+          if (added) console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", decision: "continue", reason: "✅ **Auto-learned error pattern!**\\n\\nError: \\\`" + pe.errorMessage.slice(0, 80) + "...\\\`\\nType: " + added.errorType + "\\nSolution: " + solution + "\\n\\nAdded to error DB." } }));
+        }
+        break;
+      }
+    }
+  }
+}
+
+if (toolName === "Edit") {
+  const file = toolInput.file_path || "";
+  const oldString = toolInput.old_string || "";
+  const newString = toolInput.new_string || "";
+  if (pending.errors.length > 0 && oldString && newString) {
+    pending.edits.push({ file, oldString, newString, timestamp: Date.now() });
+    pending.edits = pending.edits.slice(-10);
+    savePending(pending);
+  }
+}
+
+const tenMinutes = 10 * 60 * 1000, now = Date.now();
+pending.errors = pending.errors.filter(e => now - e.timestamp < tenMinutes);
+pending.edits = pending.edits.filter(e => now - e.timestamp < tenMinutes);
+savePending(pending);
+`;
+}
+
 function getAutoTruncateHook() {
   return `#!/usr/bin/env node
 import { readFileSync } from "fs";
@@ -486,9 +610,18 @@ function updateSettings() {
   }
 
   const autoFixPath = escapePath(join(HOOKS_DIR, "auto-fix.js"));
+  const errorLearnerPath = escapePath(join(HOOKS_DIR, "error-learner.js"));
   if (!settings.hooks.PostToolUse.some(h => h.hooks?.some(hk => hk.command?.includes("auto-fix")))) {
-    settings.hooks.PostToolUse.push({ matcher: "Bash", hooks: [{ type: "command", command: `node "${autoFixPath}"`, timeout: 10000 }] });
-    console.log("✅ Added PostToolUse hook (auto-fix)");
+    settings.hooks.PostToolUse.push({ matcher: "Bash", hooks: [
+      { type: "command", command: `node "${autoFixPath}"`, timeout: 10000 },
+      { type: "command", command: `node "${errorLearnerPath}"`, timeout: 10000 }
+    ] });
+    console.log("✅ Added PostToolUse hook (auto-fix + error-learner)");
+  }
+
+  if (!settings.hooks.PostToolUse.some(h => h.matcher === "Edit" && h.hooks?.some(hk => hk.command?.includes("error-learner")))) {
+    settings.hooks.PostToolUse.push({ matcher: "Edit", hooks: [{ type: "command", command: `node "${errorLearnerPath}"`, timeout: 5000 }] });
+    console.log("✅ Added PostToolUse hook (error-learner for Edit)");
   }
 
   const autoTruncatePath = escapePath(join(HOOKS_DIR, "auto-truncate.js"));
@@ -534,6 +667,7 @@ function install() {
   writeHook("smart-files.js", getSmartFilesHook());
   writeHook("auto-fix.js", getAutoFixHook());
   writeHook("auto-truncate.js", getAutoTruncateHook());
+  writeHook("error-learner.js", getErrorLearnerHook());
 
   updateSettings();
   updateGitignore(PROJECT_ROOT);

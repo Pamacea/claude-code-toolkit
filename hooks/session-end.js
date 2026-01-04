@@ -8,8 +8,9 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const RAG_DIR = join(PROJECT_DIR, ".rag");
-const TOOLKIT_PATH = join(PROJECT_DIR, ".claude-code-toolkit/dist/search.js");
+const CLAUDE_DIR = join(PROJECT_DIR, ".claude");
+const RAG_DIR = join(CLAUDE_DIR, ".rag");
+const TOOLKIT_PATH = join(CLAUDE_DIR, "toolkit/dist/search.js");
 const SESSION_FILE = join(RAG_DIR, "session.json");
 const BUDGET_FILE = join(RAG_DIR, "budget.json");
 const HYPOTHESIS_FILE = join(RAG_DIR, "hypothesis.json");

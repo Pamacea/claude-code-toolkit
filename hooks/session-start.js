@@ -4,9 +4,10 @@ import { existsSync, readFileSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const PROJECT_DIR = process.cwd();
-const RAG_DIR = join(PROJECT_DIR, ".rag");
-const TOOLKIT_PATH = ".claude-code-toolkit/dist/search.js";
-const CLI_PATH = ".claude-code-toolkit/dist/cli.js";
+const CLAUDE_DIR = join(PROJECT_DIR, ".claude");
+const RAG_DIR = join(CLAUDE_DIR, ".rag");
+const TOOLKIT_PATH = ".claude/toolkit/dist/search.js";
+const CLI_PATH = ".claude/toolkit/dist/cli.js";
 
 function safeExec(cmd, options = {}) {
   try {
@@ -76,7 +77,7 @@ try {
   // 4. Initialize budget if not present (default 50000 tokens)
   const budgetPath = join(RAG_DIR, "budget.json");
   if (!existsSync(budgetPath)) {
-    safeExec(`node "${toolkitScript}" budget -d "${PROJECT_DIR}" init --limit 50000`);
+    safeExec(`node "${toolkitScript}" budget -d "${PROJECT_DIR}" init --limit 40000`);
   }
 
   // 5. Load session summary (compact for context)

@@ -7,10 +7,9 @@
  * - Smart Selection: Auto-select minimal context based on task (50-70% savings)
  */
 
-import * as fs from "fs";
 import * as path from "path";
-import { loadStore, type IndexedChunk, type VectorStore } from "./store.js";
-import { loadGraph, getDependencies, getImporters, type DependencyGraph } from "./dependency-graph.js";
+import { type IndexedChunk, type VectorStore } from "./store.js";
+import { getDependencies, getImporters, type DependencyGraph } from "./dependency-graph.js";
 
 // ============================================
 // TYPE-ONLY MODE
@@ -192,30 +191,6 @@ export interface TestAssociation {
   testChunks: IndexedChunk[];
 }
 
-/**
- * Common test file patterns
- */
-const TEST_PATTERNS = [
-  // Same directory: foo.ts -> foo.test.ts, foo.spec.ts
-  (file: string) => file.replace(/\.(ts|tsx|js|jsx)$/, ".test.$1"),
-  (file: string) => file.replace(/\.(ts|tsx|js|jsx)$/, ".spec.$1"),
-  // __tests__ directory: src/foo.ts -> src/__tests__/foo.test.ts
-  (file: string) => {
-    const dir = path.dirname(file);
-    const base = path.basename(file).replace(/\.(ts|tsx|js|jsx)$/, ".test.$1");
-    return path.join(dir, "__tests__", base).replace(/\\/g, "/");
-  },
-  // tests directory: src/foo.ts -> tests/foo.test.ts
-  (file: string) => {
-    const base = path.basename(file).replace(/\.(ts|tsx|js|jsx)$/, ".test.$1");
-    return path.join("tests", base).replace(/\\/g, "/");
-  },
-  // test directory (singular): src/foo.ts -> test/foo.test.ts
-  (file: string) => {
-    const base = path.basename(file).replace(/\.(ts|tsx|js|jsx)$/, ".test.$1");
-    return path.join("test", base).replace(/\\/g, "/");
-  },
-];
 
 /**
  * Find associated test files for a source file
@@ -491,7 +466,7 @@ export function selectSmartContext(
   };
 
   const optimizations: string[] = [];
-  let chunks = searchResults.slice(0, finalOptions.maxChunks).map((r) => r.chunk);
+  const chunks = searchResults.slice(0, finalOptions.maxChunks).map((r) => r.chunk);
 
   // Get related files from dependency graph
   let relatedFiles: string[] = [];

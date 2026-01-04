@@ -9,8 +9,10 @@ import { execSync } from "child_process";
 import { join } from "path";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const TOOLKIT_PATH = join(PROJECT_DIR, ".claude-code-toolkit/dist/search.js");
-const ERRORS_DB = join(PROJECT_DIR, ".rag-errors.json");
+const CLAUDE_DIR = join(PROJECT_DIR, ".claude");
+const RAG_DIR = join(CLAUDE_DIR, ".rag");
+const TOOLKIT_PATH = join(CLAUDE_DIR, "toolkit/dist/search.js");
+const ERRORS_DB = join(RAG_DIR, "errors.json");
 
 let inputData;
 try {

@@ -98,6 +98,7 @@ import {
   formatErrorPattern,
   formatErrorList,
   getDBStats as getErrorDBStats,
+  quickAddError,
 } from "./error-patterns.js";
 import {
   loadSnippetsCache,
@@ -168,6 +169,7 @@ import {
   shouldAllowRead,
   formatOptimizerStatus,
 } from "./read-optimizer.js";
+import { loadBurnRate } from "./burn-rate.js";
 
 program
   .name("rag-search")
@@ -277,6 +279,7 @@ program
   .option("--types-only", "Only show types/interfaces (80-90% token savings)")
   .option("--smart", "Smart context selection based on task type")
   .option("--signatures-only", "Only show signatures (minimal context)")
+  .option("--surgeon", "Surgeon mode: AST signatures only (70-85% token savings)")
   .option("--lazy", "Lazy loading: only refs, use 'expand' to load content (max token savings)")
   .option("--no-cache", "Disable semantic cache")
   .option("--cache-ttl <minutes>", "Cache TTL in minutes", "15")
@@ -370,6 +373,13 @@ program
     if (options.typesOnly) {
       const typeResults = extractTypesOnly(results.map((r) => r.chunk));
       console.log(formatTypesOnly(typeResults));
+      return;
+    }
+
+    if (options.surgeon) {
+      const { extractSurgeonFromChunks, formatSurgeonResults } = await import("./surgeon.js");
+      const surgeonResults = extractSurgeonFromChunks(results.map((r) => r.chunk));
+      console.log(formatSurgeonResults(surgeonResults));
       return;
     }
 
@@ -1141,6 +1151,30 @@ program
       return;
     }
 
+    // Quick learn: add error with just message and solution (auto-detects type & tags)
+    if (action === "learn") {
+      if (!options.message || !options.solution) {
+        console.log(chalk.red("Required: --message, --solution"));
+        console.log(chalk.gray("Example: pnpm rag:errors learn -m \"Cannot find module 'foo'\" -s \"Run npm install foo\""));
+        return;
+      }
+
+      const pattern = quickAddError(db, options.message, options.solution, {
+        errorType: options.type,
+        tags: options.tags ? options.tags.split(",").map((t: string) => t.trim()) : undefined,
+      });
+
+      if (pattern) {
+        saveErrorDB(rootDir, db);
+        console.log(chalk.green(`✅ Error learned: ${pattern.id}`));
+        console.log(chalk.gray(`Type: ${pattern.errorType}`));
+        console.log(chalk.gray(`Tags: ${pattern.metadata.tags.join(", ") || "none"}`));
+      } else {
+        console.log(chalk.red("Failed to add error pattern."));
+      }
+      return;
+    }
+
     // Find matching error
     if (action === "find" && options.message) {
       const match = findErrorPattern(db, options.message, options.type);
@@ -1886,5 +1920,385 @@ program
     // Show overall status
     console.log(formatOptimizerStatus(rootDir));
   });
+
+// ============================================
+// CHECKPOINT - SESSION STATE TRANSFER
+// ============================================
+
+program
+  .command("checkpoint [action]")
+  .description("Generate or load compressed session state (CSS)")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("--arch <decisions>", "Architecture decisions (JSON array)")
+  .option("--todos <tasks>", "Task stack (JSON array)")
+  .option("--no-clipboard", "Don't copy to clipboard")
+  .action(async (action, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    const {
+      generateCheckpoint,
+      saveCheckpoint,
+      loadCheckpoint,
+      formatCheckpointCli,
+      formatCheckpointMarkdown,
+      copyToClipboard,
+    } = await import("./checkpoint.js");
+
+    if (action === "load" || action === "show") {
+      const checkpoint = loadCheckpoint(rootDir);
+      if (!checkpoint) {
+        console.log(chalk.yellow("No checkpoint found."));
+        return;
+      }
+      console.log(formatCheckpointMarkdown(checkpoint));
+      return;
+    }
+
+    // Generate checkpoint (default)
+    const archDecisions = options.arch ? JSON.parse(options.arch) : [];
+    const todos = options.todos ? JSON.parse(options.todos) : [];
+
+    const checkpoint = generateCheckpoint(rootDir, {
+      architecture: archDecisions,
+      todos,
+    });
+
+    saveCheckpoint(rootDir, checkpoint);
+
+    console.log(formatCheckpointCli(checkpoint));
+
+    if (options.clipboard !== false) {
+      const md = formatCheckpointMarkdown(checkpoint);
+      const copied = copyToClipboard(md);
+      if (!copied) {
+        console.log(chalk.yellow("⚠️ Could not copy to clipboard"));
+      }
+    }
+  });
+
+// ============================================
+// SURGEON - MINIMAL CONTEXT EXTRACTION
+// ============================================
+
+program
+  .command("surgeon <file>")
+  .description("Extract AST signatures only (minimal tokens)")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .action(async (file, options) => {
+    const rootDir = path.resolve(options.dir);
+    const filePath = path.resolve(rootDir, file);
+
+    if (!fs.existsSync(filePath)) {
+      console.log(chalk.red(`File not found: ${file}`));
+      return;
+    }
+
+    const { extractSurgeonContent, formatSurgeonContent } = await import("./surgeon.js");
+
+    const result = extractSurgeonContent(filePath);
+    if (!result) {
+      console.log(chalk.red(`Could not parse: ${file}`));
+      return;
+    }
+
+    console.log(formatSurgeonContent(result));
+    console.log(chalk.gray(`\n💾 Token savings: ${result.estimatedTokensSaved} (${Math.round((result.estimatedTokensSaved / result.originalTokens) * 100)}%)`));
+  });
+
+// ============================================
+// BURN RATE - TOKEN CONSUMPTION TRACKING
+// ============================================
+
+program
+  .command("burn-rate [action]")
+  .description("Track token burn rate and session health")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .action(async (action, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    const {
+      initBurnRateTracking,
+      trackBurnRate,
+      loadBurnRate,
+      formatBurnRateReport,
+    } = await import("./burn-rate.js");
+
+    if (action === "init" || action === "reset") {
+      const data = initBurnRateTracking(rootDir);
+      console.log(chalk.green(`✅ Burn rate tracking initialized: ${data.sessionId}`));
+      return;
+    }
+
+    if (action === "track" || action === "sample") {
+      const result = trackBurnRate(rootDir);
+      if (result.alert) {
+        console.log(chalk.yellow(result.alert.message));
+      } else if (result.sample) {
+        console.log(chalk.gray(`📊 Sampled: +${result.sample.delta} tokens (${Math.round(result.sample.rate)}/min)`));
+      }
+      return;
+    }
+
+    // Show report (default)
+    const budget = loadBudget(rootDir);
+    const burnRate = loadBurnRate(rootDir);
+
+    if (!budget || !burnRate) {
+      console.log(chalk.yellow("No burn rate data. Run 'pnpm rag:burn-rate init' first."));
+      return;
+    }
+
+    console.log(formatBurnRateReport(burnRate, budget));
+  });
+
+// ============================================
+// RULES - STRATEGY INSTRUCTIONS GENERATOR
+// ============================================
+
+program
+  .command("rules [action]")
+  .description("Generate persistent token optimization rules")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("--strict", "Enable strict mode")
+  .option("--surgeon-default", "Make surgeon mode default")
+  .option("--max-lines <n>", "Max file read lines", "150")
+  .option("--warning-threshold <n>", "Budget warning threshold %", "60")
+  .action(async (action, options) => {
+    const rootDir = path.resolve(options.dir);
+
+    const rulesModule = await import("./rules-generator.js");
+
+    if (action === "show" || action === "view") {
+      const config = rulesModule.loadRulesConfig(rootDir);
+      if (!config) {
+        console.log(chalk.yellow("No rules file found. Use 'pnpm rag:rules generate'."));
+        return;
+      }
+      console.log(rulesModule.formatRulesSummary(config));
+      return;
+    }
+
+    // Generate rules (default)
+    const config = {
+      strictMode: options.strict ?? true,
+      autoCheckpoint: true,
+      surgeonDefault: options.surgeonDefault ?? true,
+      maxFileReadLines: parseInt(options.maxLines),
+      budgetWarningThreshold: parseInt(options.warningThreshold),
+    };
+
+    const filePath = rulesModule.generateRulesFile(rootDir, config);
+    console.log(chalk.green(`✅ Rules generated: ${filePath}`));
+    console.log(rulesModule.formatRulesSummary(config));
+  });
+
+// ============================================
+// STATS - UNIFIED TOOLKIT STATISTICS
+// ============================================
+
+program
+  .command("stats")
+  .description("Show unified toolkit statistics (budget, cache, errors, session)")
+  .option("-d, --dir <path>", "Root directory", ".")
+  .option("--json", "Output as JSON")
+  .action((options) => {
+    const rootDir = path.resolve(options.dir);
+
+    const stats: {
+      budget: { consumed: number; total: number; percentage: number; reads: number } | null;
+      cache: { entries: number; hitRate: number; queries: number } | null;
+      errors: { patterns: number; lookups: number; hitRate: number } | null;
+      snippets: { count: number; insertions: number } | null;
+      index: { files: number; chunks: number } | null;
+      session: { branch: string; modified: number; duration: string } | null;
+      burnRate: { tokensPerMin: number; estimatedTimeLeft: string; alert: string | null } | null;
+    } = {
+      budget: null,
+      cache: null,
+      errors: null,
+      snippets: null,
+      index: null,
+      session: null,
+      burnRate: null,
+    };
+
+    // Budget stats
+    const budget = loadBudget(rootDir);
+    if (budget) {
+      stats.budget = {
+        consumed: budget.consumed,
+        total: budget.totalBudget,
+        percentage: Math.round((budget.consumed / budget.totalBudget) * 100),
+        reads: budget.reads.length,
+      };
+    }
+
+    // Cache stats
+    const cache = loadCache(rootDir);
+    if (cache) {
+      const cacheStats = getCacheStats(cache);
+      stats.cache = {
+        entries: cacheStats.entries,
+        hitRate: Math.round(cacheStats.hitRate * 100),
+        queries: cacheStats.totalQueries,
+      };
+    }
+
+    // Errors stats
+    const errorsDB = loadErrorDB(rootDir);
+    if (errorsDB) {
+      const errorStats = getErrorDBStats(errorsDB);
+      stats.errors = {
+        patterns: errorStats.totalPatterns,
+        lookups: errorsDB.stats.totalLookups,
+        hitRate: Math.round(errorStats.hitRate * 100),
+      };
+    }
+
+    // Snippets stats
+    const snippetsCache = loadSnippetsCache(rootDir);
+    if (snippetsCache) {
+      const snippetStats = getSnippetStats(snippetsCache);
+      stats.snippets = {
+        count: snippetStats.totalSnippets,
+        insertions: snippetStats.totalInsertions,
+      };
+    }
+
+    // Index stats
+    const store = loadStore(rootDir);
+    if (store) {
+      const uniqueFiles = new Set(store.chunks.map(c => c.filePath));
+      stats.index = {
+        files: uniqueFiles.size,
+        chunks: store.chunks.length,
+      };
+    }
+
+    // Session stats
+    try {
+      const branch = getCurrentBranch(rootDir);
+      const changedFiles = getChangedFiles(rootDir);
+      const session = loadSession(rootDir);
+      let duration = "N/A";
+      if (session && session.startedAt && !isNaN(session.startedAt)) {
+        duration = formatDuration(Date.now() - session.startedAt);
+      }
+      stats.session = {
+        branch,
+        modified: changedFiles.length,
+        duration,
+      };
+    } catch {
+      // Git not available
+    }
+
+    // Burn rate stats
+    try {
+      const burnRate = loadBurnRate(rootDir);
+      if (burnRate && burnRate.samples.length > 0 && budget) {
+        const lastSample = burnRate.samples[burnRate.samples.length - 1];
+        const tokensPerMin = Math.round(lastSample.rate);
+        const remaining = budget.totalBudget - budget.consumed;
+        const minutesLeft = tokensPerMin > 0 ? Math.round(remaining / tokensPerMin) : Infinity;
+        const currentAlert = burnRate.alerts.length > 0 ? burnRate.alerts[burnRate.alerts.length - 1] : null;
+        stats.burnRate = {
+          tokensPerMin,
+          estimatedTimeLeft: minutesLeft < 999 ? `${minutesLeft}min` : "∞",
+          alert: currentAlert?.message || null,
+        };
+      }
+    } catch {
+      // Burn rate not available
+    }
+
+    if (options.json) {
+      console.log(JSON.stringify(stats, null, 2));
+      return;
+    }
+
+    // Pretty print
+    console.log(chalk.blue("\n📊 Toolkit Statistics\n"));
+
+    if (stats.budget) {
+      const budgetColor = stats.budget.percentage > 80 ? chalk.red : stats.budget.percentage > 60 ? chalk.yellow : chalk.green;
+      console.log(chalk.bold("💰 Budget"));
+      console.log(`   ${budgetColor(`${stats.budget.consumed.toLocaleString()}/${stats.budget.total.toLocaleString()} tokens (${stats.budget.percentage}%)`)}`);
+      console.log(`   Reads: ${stats.budget.reads}`);
+    } else {
+      console.log(chalk.gray("💰 Budget: Not initialized"));
+    }
+
+    console.log();
+
+    if (stats.cache) {
+      console.log(chalk.bold("📦 Cache"));
+      console.log(`   Entries: ${stats.cache.entries}`);
+      console.log(`   Hit rate: ${stats.cache.hitRate}%`);
+      console.log(`   Queries: ${stats.cache.queries}`);
+    } else {
+      console.log(chalk.gray("📦 Cache: Empty"));
+    }
+
+    console.log();
+
+    if (stats.errors) {
+      console.log(chalk.bold("🐛 Errors DB"));
+      console.log(`   Patterns: ${stats.errors.patterns}`);
+      console.log(`   Lookups: ${stats.errors.lookups}`);
+      console.log(`   Hit rate: ${stats.errors.hitRate}%`);
+    } else {
+      console.log(chalk.gray("🐛 Errors DB: Empty"));
+    }
+
+    console.log();
+
+    if (stats.snippets) {
+      console.log(chalk.bold("📋 Snippets"));
+      console.log(`   Count: ${stats.snippets.count}`);
+      console.log(`   Insertions: ${stats.snippets.insertions}`);
+    } else {
+      console.log(chalk.gray("📋 Snippets: Empty"));
+    }
+
+    console.log();
+
+    if (stats.index) {
+      console.log(chalk.bold("📇 Index"));
+      console.log(`   Files: ${stats.index.files}`);
+      console.log(`   Chunks: ${stats.index.chunks}`);
+    } else {
+      console.log(chalk.gray("📇 Index: Not built"));
+    }
+
+    console.log();
+
+    if (stats.session) {
+      console.log(chalk.bold("📍 Session"));
+      console.log(`   Branch: ${stats.session.branch}`);
+      console.log(`   Modified files: ${stats.session.modified}`);
+      console.log(`   Duration: ${stats.session.duration}`);
+    }
+
+    if (stats.burnRate) {
+      console.log();
+      console.log(chalk.bold("🔥 Burn Rate"));
+      console.log(`   Rate: ${stats.burnRate.tokensPerMin} tokens/min`);
+      console.log(`   Time left: ${stats.burnRate.estimatedTimeLeft}`);
+      if (stats.burnRate.alert) {
+        console.log(chalk.yellow(`   ⚠️ ${stats.burnRate.alert}`));
+      }
+    }
+
+    console.log();
+  });
+
+function formatDuration(ms: number): string {
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMins = minutes % 60;
+  return `${hours}h ${remainingMins}min`;
+}
 
 program.parse();
