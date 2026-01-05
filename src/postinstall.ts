@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 
 interface HookConfig {
   type: "command";
@@ -41,7 +42,6 @@ const projectRoot = join(claudeDir, "..");
 
 // Paths (toolkit is now at .claude/toolkit)
 const ragDir = join(claudeDir, ".rag");
-const claudeHooksDir = join(claudeDir, "hooks");
 const hooksSourceDir = join(toolkitRoot, "hooks");
 
 console.log("🔧 Claude Toolkit - Post-install setup\n");
@@ -54,33 +54,8 @@ if (!existsSync(ragDir)) {
   console.log("✓ .claude/.rag/ directory exists");
 }
 
-// 2. Install hooks
-if (!existsSync(claudeHooksDir)) {
-  mkdirSync(claudeHooksDir, { recursive: true });
-}
-
-const hooks = [
-  "session-start.js",
-  "session-end.js",
-  "auto-fix.js",
-  "auto-truncate.js",
-  "read-guard.js",
-  "budget-tracker.js",
-  "smart-files.js",
-  "on-error.js",
-  "error-learner.js"
-];
-
-let hooksInstalled = 0;
-for (const hook of hooks) {
-  const source = join(hooksSourceDir, hook);
-  const dest = join(claudeHooksDir, hook);
-  if (existsSync(source)) {
-    copyFileSync(source, dest);
-    hooksInstalled++;
-  }
-}
-console.log(`✅ Installed ${hooksInstalled} hooks to .claude/hooks/`);
+// 2. Hooks are now used directly from toolkit/hooks
+// No need to copy them to .claude/hooks/
 
 // 2b. Configure hooks in settings.local.json
 const settingsPath = join(projectRoot, ".claude", "settings.local.json");
@@ -95,20 +70,20 @@ if (existsSync(settingsPath)) {
 // Ensure hooks configuration exists
 if (!settings.hooks) settings.hooks = {};
 
-// Configure all hook triggers
+// Configure all hook triggers - use hooks from toolkit directly
 settings.hooks = {
   ...settings.hooks,
   SessionStart: [
     {
       hooks: [
-        { type: "command", command: "node .claude/hooks/session-start.js", timeout: 180000 }
+        { type: "command", command: "node .claude/toolkit/hooks/session-start.js", timeout: 180000 }
       ]
     }
   ],
   Stop: [
     {
       hooks: [
-        { type: "command", command: "node .claude/hooks/session-end.js", timeout: 15000 }
+        { type: "command", command: "node .claude/toolkit/hooks/session-end.js", timeout: 15000 }
       ]
     }
   ],
@@ -116,13 +91,13 @@ settings.hooks = {
     {
       matcher: "Read",
       hooks: [
-        { type: "command", command: "node .claude/hooks/read-guard.js", timeout: 5000 }
+        { type: "command", command: "node .claude/toolkit/hooks/read-guard.js", timeout: 5000 }
       ]
     },
     {
       matcher: "Edit",
       hooks: [
-        { type: "command", command: "node .claude/hooks/smart-files.js", timeout: 5000 }
+        { type: "command", command: "node .claude/toolkit/hooks/smart-files.js", timeout: 5000 }
       ]
     }
   ],
@@ -130,21 +105,21 @@ settings.hooks = {
     {
       matcher: "Bash",
       hooks: [
-        { type: "command", command: "node .claude/hooks/auto-fix.js", timeout: 10000 },
-        { type: "command", command: "node .claude/hooks/error-learner.js", timeout: 10000 }
+        { type: "command", command: "node .claude/toolkit/hooks/auto-fix.js", timeout: 10000 },
+        { type: "command", command: "node .claude/toolkit/hooks/error-learner.js", timeout: 10000 }
       ]
     },
     {
       matcher: "Edit",
       hooks: [
-        { type: "command", command: "node .claude/hooks/error-learner.js", timeout: 5000 }
+        { type: "command", command: "node .claude/toolkit/hooks/error-learner.js", timeout: 5000 }
       ]
     },
     {
       matcher: "Read",
       hooks: [
-        { type: "command", command: "node .claude/hooks/auto-truncate.js", timeout: 5000 },
-        { type: "command", command: "node .claude/hooks/budget-tracker.js", timeout: 5000 }
+        { type: "command", command: "node .claude/toolkit/hooks/auto-truncate.js", timeout: 5000 },
+        { type: "command", command: "node .claude/toolkit/hooks/budget-tracker.js", timeout: 5000 }
       ]
     }
   ]
@@ -178,42 +153,15 @@ if (existsSync(gitignorePath)) {
   console.log("✅ Created .gitignore");
 }
 
-// 4. Check for package.json and suggest scripts
+// 4. Automatically add scripts to package.json
 const packageJsonPath = join(projectRoot, "package.json");
-if (existsSync(packageJsonPath)) {
-  try {
-    const pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
-    const hasRagScripts = pkg.scripts && Object.keys(pkg.scripts).some(k => k.startsWith("rag:"));
+const addScriptsPath = join(toolkitRoot, "add-scripts.js");
 
-    if (!hasRagScripts) {
-      console.log("\n💡 Add these scripts to your package.json:");
-      console.log(`
-"scripts": {
-  "rag:index": "node .claude/toolkit/dist/cli.js index -d .",
-  "rag:context": "node .claude/toolkit/dist/search.js context",
-  "rag:expand": "node .claude/toolkit/dist/search.js expand",
-  "rag:deps": "node .claude/toolkit/dist/search.js deps -d .",
-  "rag:diff": "node .claude/toolkit/dist/search.js diff -d .",
-  "rag:commit": "node .claude/toolkit/dist/search.js commit -d .",
-  "rag:budget": "node .claude/toolkit/dist/search.js budget -d .",
-  "rag:hypothesis": "node .claude/toolkit/dist/search.js hypothesis -d .",
-  "rag:context-lock": "node .claude/toolkit/dist/search.js context-lock -d .",
-  "rag:optimizer": "node .claude/toolkit/dist/search.js optimizer -d .",
-  "rag:contracts": "node .claude/toolkit/dist/search.js contracts -d .",
-  "rag:locality": "node .claude/toolkit/dist/search.js locality -d .",
-  "rag:importance": "node .claude/toolkit/dist/search.js importance -d .",
-  "rag:risk": "node .claude/toolkit/dist/search.js risk -d .",
-  "rag:memory": "node .claude/toolkit/dist/search.js memory -d .",
-  "rag:session": "node .claude/toolkit/dist/search.js session -d .",
-  "rag:errors": "node .claude/toolkit/dist/search.js errors -d .",
-  "rag:snippets": "node .claude/toolkit/dist/search.js snippets -d .",
-  "rag:watch": "node .claude/toolkit/dist/search.js watch -d ."
-}`);
-    } else {
-      console.log("✓ rag: scripts already present");
-    }
+if (existsSync(packageJsonPath) && existsSync(addScriptsPath)) {
+  try {
+    execSync(`node "${addScriptsPath}"`, { cwd: projectRoot, stdio: "inherit" });
   } catch {
-    // Ignore JSON parse errors
+    // Ignore errors - scripts might already exist
   }
 }
 

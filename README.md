@@ -40,5 +40,6 @@ Designed to survive "Claude Max 5x" restrictions and high-latency sessions.
 ```bash
 git clone https://github.com/Pamacea/claude-code-toolkit.git .claude/toolkit
 cd .claude/toolkit && pnpm install
-npm rebuild sharp # Required for pnpm 10+
 pnpm build
+pnpm rag:install  # Configures hooks and creates .rag/ directory
+```

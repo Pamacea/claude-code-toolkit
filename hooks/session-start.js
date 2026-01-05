@@ -18,7 +18,9 @@ function safeExec(cmd, options = {}) {
       cwd: PROJECT_DIR,
       ...options,
     }).trim();
-  } catch {
+  } catch (error) {
+    console.error(`❌ Command failed: ${cmd}`);
+    console.error(`   ${error.message}`);
     return null;
   }
 }
@@ -119,7 +121,7 @@ ${memory || "Memory unavailable"}
 ## Session Status
 ${sessionSummary || "New session"}
 
-## Read Optimizer v5.0
+## Read Optimizer Status
 ${optimizerStatus || "Optimizer status unavailable"}
 ${activeHypothesis ? `
 ## Active Hypothesis Session
