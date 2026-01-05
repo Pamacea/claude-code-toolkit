@@ -25,6 +25,26 @@ function safeExec(cmd, options = {}) {
   }
 }
 
+function execAndVerify(cmd, requiredFile, description) {
+  try {
+    execSync(cmd, {
+      encoding: "utf-8",
+      maxBuffer: 5 * 1024 * 1024,
+      timeout: 60000,
+      cwd: PROJECT_DIR,
+    }).trim();
+
+    if (!existsSync(requiredFile)) {
+      console.error(`❌ ${description} failed - file not created: ${requiredFile}`);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error(`❌ ${description} failed: ${error.message}`);
+    return false;
+  }
+}
+
 function ensureRagDir() {
   if (!existsSync(RAG_DIR)) {
     mkdirSync(RAG_DIR, { recursive: true });
@@ -39,6 +59,8 @@ try {
     console.log("RAG not built");
     process.exit(0);
   }
+
+  console.log("🚀 Session start hook initializing...");
 
   // Ensure .rag directory exists
   ensureRagDir();
@@ -67,19 +89,34 @@ try {
   // 2. Build deps graph if missing (needed for importance)
   const depsPath = join(RAG_DIR, "deps.json");
   if (!existsSync(depsPath)) {
-    safeExec(`node "${toolkitScript}" deps -d "${PROJECT_DIR}" --build`);
+    console.log("Building dependency graph...");
+    execAndVerify(
+      `node "${toolkitScript}" deps -d "${PROJECT_DIR}" --build`,
+      depsPath,
+      "Dependency graph build"
+    );
   }
 
   // 3. Build importance index if missing
   const importancePath = join(RAG_DIR, "importance.json");
   if (!existsSync(importancePath)) {
-    safeExec(`node "${toolkitScript}" importance -d "${PROJECT_DIR}" build`);
+    console.log("Building importance index...");
+    execAndVerify(
+      `node "${toolkitScript}" importance -d "${PROJECT_DIR}" build`,
+      importancePath,
+      "Importance index build"
+    );
   }
 
   // 4. Initialize budget if not present (default 50000 tokens)
   const budgetPath = join(RAG_DIR, "budget.json");
   if (!existsSync(budgetPath)) {
-    safeExec(`node "${toolkitScript}" budget -d "${PROJECT_DIR}" init --limit 40000`);
+    console.log("Initializing budget...");
+    execAndVerify(
+      `node "${toolkitScript}" budget -d "${PROJECT_DIR}" init --limit 40000`,
+      budgetPath,
+      "Budget initialization"
+    );
   }
 
   // 5. Load session summary (compact for context)
