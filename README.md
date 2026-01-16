@@ -1,4 +1,6 @@
-# Claude Code Toolkit v5.5
+# Claude Code Toolkit v5.5(DEPRECATED)
+
+-> The Claude Code Toolkit is now implemented to the smite repository, a marketplace with massives plugins with brainstorm, builder, tollkit, looper. 
 
 The ultimate Quota Survival System for Claude Code. Maximize token efficiency with AST-based RAG, surgeon-mode extraction, and session checkpoints.
 
