@@ -1,5 +1,11 @@
 # Claude Code Toolkit v5.5(DEPRECATED)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub release](https://img.shields.io/github/v/release/Pamacea/claude-code-toolkit)](https://github.com/Pamacea/claude-code-toolkit/releases/latest)
+[![CI](https://github.com/Pamacea/claude-code-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/Pamacea/claude-code-toolkit/actions)
+
+
+
 -> The Claude Code Toolkit is now implemented to the smite repository, a marketplace with massives plugins with brainstorm, builder, tollkit, looper. 
 
 The ultimate Quota Survival System for Claude Code. Maximize token efficiency with AST-based RAG, surgeon-mode extraction, and session checkpoints.
